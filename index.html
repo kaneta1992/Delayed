@@ -1,0 +1,23 @@
+<script id="fs" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform vec2  resolution; 
+uniform float time; 
+out vec4 fragColor;
+
+void main( )
+{
+    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y;
+    vec3 col = vec3(p, 0.5);
+    fragColor=vec4(col,1);
+}
+</script>
+
+<script type="text/javascript" src="./utility.js"></script>
+<script type="text/javascript" src="./app.js"></script>
+
+<html>
+    <body>
+
+    </body>
+</html>
