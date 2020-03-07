@@ -48,4 +48,7 @@ class ShaderProgram {
     Send2f(name, v1, v2) {
         gl.uniform2f(this.getUniformLocation(name), v1, v2);
     }
+    Send1i(name, v1) {
+        gl.uniform1i(this.getUniformLocation(name), v1);
+    }
 }
