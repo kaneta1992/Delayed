@@ -5,25 +5,43 @@
 <script id="fs" type="x-shader/x-fragment">
 #version 300 es
 precision highp float;
+uniform vec2 fullResolution;
 uniform vec2  resolution; 
-uniform float time; 
-out vec4 fragColor;
+uniform float time;
 uniform sampler2D tex;
+
+out vec4 fragColor;
 
 void main( )
 {
     vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y;
     vec2 uv = gl_FragCoord.xy / resolution;
     vec3 col = vec3(p, 0.5);
-    vec2 rate = resolution / vec2(1024.0f);
+    vec2 rate = fullResolution / vec2(1024.0f);
 
     uv.y = 1.0 - uv.y;
     uv = uv * rate;
 
-    col = texture(tex, clamp(uv, 0.0, 1.0)).rgb;
+    col = textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb;
     fragColor=vec4(col,1);
 }
 </script>
+
+<script id="fs2" type="x-shader/x-fragment">
+    #version 300 es
+    precision highp float;
+    uniform vec2  resolution;
+    uniform sampler2D tex; 
+    out vec4 fragColor;
+    
+    void main( )
+    {
+        vec2 uv = gl_FragCoord.xy / resolution;
+        vec3 col = vec3(uv, 0.5);
+        col = textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb;
+        fragColor=vec4(col,1);
+    }
+    </script>
 
 <link rel="stylesheet" href="./style.css" />
 

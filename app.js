@@ -11,14 +11,9 @@ function TestTextTexture() {
     context.textBaseline = "top";
     context.fillText("インターンは延期しました。大変申し訳ございません。", 0, 0, 1024);
 
-    const texture = gl.createTexture(1024, 1024);
+    let texture = new Texture2D(1024, 1024);
     let imageData= context.getImageData(0, 0, 1024, 1024);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.bindTexture(gl.TEXTURE_2D, null);
+    texture.SetImageData(imageData);
     return texture;
 }
 
@@ -32,7 +27,7 @@ window.onload = function () {
 
     gl = canvas.getContext("webgl2") || canvas.getContext("experimental-webgl2");
 
-    vertex = `
+    const vertex = `
     #version 300 es
     void main()
     { 
@@ -40,24 +35,53 @@ window.onload = function () {
     }
     `
 
-    vertexShader = new Shader(vertex, gl.VERTEX_SHADER);
-    fragmentShader = new Shader(fs.text, gl.FRAGMENT_SHADER);
-    program = new ShaderProgram();
+    let vertexShader = new Shader(vertex, gl.VERTEX_SHADER);
+    let fragmentShader = new Shader(fs.text, gl.FRAGMENT_SHADER);
+    let fragmentShader2 = new Shader(fs2.text, gl.FRAGMENT_SHADER);
+    let program = new ShaderProgram();
+    let program2 = new ShaderProgram();
 
     program.Link(vertexShader, fragmentShader);
-    program.Use();
-    program.Send2f("resolution", canvas.width, canvas.height);
+    program2.Link(vertexShader, fragmentShader2);
 
+
+    const renderTexture = new RenderTexture(canvas.width/2, canvas.height/2);
     const texture = TestTextTexture();
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    program.Send1i("tex", 0);
+
+    gl.disable(gl.CULL_FACE);
+    gl.disable(gl.DEPTH_TEST);
 
     let zero = Date.now();
     (function () { 
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        renderTexture.Bind();
+        renderTexture.SetViewport();
+
+        program.Use();
+        program.Send2f("resolution", renderTexture.width, renderTexture.height);
+        program.Send2f("fullResolution", canvas.width, canvas.height);
+        program.SendTexture2D("tex", texture, 0);
         program.Send1f("time", (Date.now() - zero) * 0.001);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        renderTexture.UnBind();
+
+        /*
+        renderTexture.texture.Bind();
+        gl.generateMipmap(gl.TEXTURE_2D);
+        renderTexture.texture.UnBind();
+        */
+
+        program2.Use();
+        program2.Send2f("resolution", canvas.width, canvas.height);
+        program2.SendTexture2D("tex", renderTexture.texture, 0);
+        gl.viewport(0.0, 0.0, canvas.width, canvas.height);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        //console.log(gl.getError());
+        
+
         requestAnimationFrame(arguments.callee);
     })();
 };
