@@ -3,7 +3,7 @@ function TestTextTexture() {
     canvasText.width = 1024;
     canvasText.height = 1024;
     //canvasText.hidden = true;
-    context = canvasText.getContext('2d');
+    context = canvasText.getContext('2d', {alpha: false});
 
     context.fillStyle = "white";
     context.font = "30px 'ＭＳ ゴシック'";
@@ -45,7 +45,7 @@ window.onload = function () {
     program2.Link(vertexShader, fragmentShader2);
 
 
-    const renderTexture = new RenderTexture(canvas.width/2, canvas.height/2);
+    const renderTexture = new RenderTexture(canvas.width, canvas.height);
     const texture = TestTextTexture();
 
     gl.disable(gl.CULL_FACE);
