@@ -19,8 +19,12 @@ function TestTextTexture() {
 
 window.onload = function () {
     let canvas = document.createElement("canvas");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+
+    let w = window.innerWidth;
+    let h = window.innerHeight;
+
+    canvas.width = w;
+    canvas.height = h;
     canvas.style.width = window.innerWidth+"px";
     canvas.style.height = window.innerHeight+"px";
     document.body.appendChild(canvas);
@@ -36,11 +40,14 @@ window.onload = function () {
     `
 
     let vertexShader = new Shader(vertex, gl.VERTEX_SHADER);
+    let mainFragmentShader = new Shader(main.text, gl.FRAGMENT_SHADER);
     let fragmentShader = new Shader(fs.text, gl.FRAGMENT_SHADER);
     let fragmentShader2 = new Shader(fs2.text, gl.FRAGMENT_SHADER);
+    let mainProgram = new ShaderProgram();
     let program = new ShaderProgram();
     let program2 = new ShaderProgram();
 
+    mainProgram.Link(vertexShader, mainFragmentShader);
     program.Link(vertexShader, fragmentShader);
     program2.Link(vertexShader, fragmentShader2);
 
@@ -56,12 +63,18 @@ window.onload = function () {
         renderTexture.Bind();
         renderTexture.SetViewport();
 
+        /*
         program.Use();
         program.Send2f("resolution", renderTexture.width, renderTexture.height);
         program.Send2f("fullResolution", canvas.width, canvas.height);
         program.SendTexture2D("tex", texture, 0);
         program.Send1f("time", (Date.now() - zero) * 0.001);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        */
+        mainProgram.Use();
+        mainProgram.Send2f("iResolution", renderTexture.width, renderTexture.height);
+        mainProgram.Send2f("fullResolution", canvas.width, canvas.height);
+        mainProgram.Send1f("iTime", (Date.now() - zero) * 0.001);
+        //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
         renderTexture.UnBind();
@@ -76,7 +89,7 @@ window.onload = function () {
         program2.Send2f("resolution", canvas.width, canvas.height);
         program2.SendTexture2D("tex", renderTexture.texture, 0);
         gl.viewport(0.0, 0.0, canvas.width, canvas.height);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
         //console.log(gl.getError());
