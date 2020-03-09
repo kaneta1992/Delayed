@@ -166,7 +166,7 @@ void ceilProperty(vec3 p, vec2 mat, out vec3 baseColor) {
     p.z = mod(p.z + 0.15, 0.3) - 0.15;
     p.z = abs(p.z);
     float t = smoothstep(0.001, 0.006, p.z);
-    baseColor = vec3(mix(vec3(0.2), vec3(0.3, 0.28, 0.25), t));
+    baseColor = vec3(mix(vec3(0.2), vec3(0.5, 0.5, 0.5), t));
 }
 
 void floorProperty(vec3 p, vec2 mat, out vec3 baseColor) {
@@ -181,7 +181,7 @@ void floorProperty(vec3 p, vec2 mat, out vec3 baseColor) {
     float blockAlpha = smoothstep(0.006, 0.001, blockPos.x);
     
     
-    baseColor = vec3(mix(vec3(0.2), vec3(0.3, 0.28, 0.25), latticeAlpha));
+    baseColor = vec3(mix(vec3(0.2), vec3(0.5, 0.5, 0.5), latticeAlpha));
     baseColor = vec3(mix(baseColor, vec3(0.6, 0.5, 0.1), blockAlpha));
 }
 
@@ -191,7 +191,7 @@ void pillarProperty(vec3 p, vec2 mat, out vec3 baseColor) {
     float d = abs(pillarPos.y);
     float pillarAlpha = smoothstep(0.001, 0.006, d);
 
-    baseColor = vec3(mix(vec3(0.2), vec3(0.3, 0.28, 0.25), pillarAlpha));
+    baseColor = vec3(mix(vec3(0.2), vec3(0.5, 0.5, 0.5), pillarAlpha));
 }
 
 void outsideProperty(vec3 p, vec2 mat, out vec3 baseColor) {
@@ -210,13 +210,68 @@ void boardProperty(vec3 p, vec2 mat, out vec3 baseColor) {
     baseColor = mix(vec3(0.02), vec3(0.005), displayAlpha);
 }
 
-vec3 normal( in vec3 pos, float eps )
+float hash( float n )
+{
+    return fract(sin(n)*43758.5453);
+}
+
+float noise( in vec3 x )
+{
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+
+    f = f*f*(3.0-2.0*f);
+
+    float n = p.x + p.y*57.0 + 113.0*p.z;
+
+    float res = mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
+                        mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y),
+                    mix(mix( hash(n+113.0), hash(n+114.0),f.x),
+                        mix( hash(n+170.0), hash(n+171.0),f.x),f.y),f.z);
+    return res;
+}
+
+mat3 m = mat3( 0.00,  0.80,  0.60,
+              -0.80,  0.36, -0.48,
+              -0.60, -0.48,  0.64 );
+
+
+float fbm( vec3 pos )
+{
+    float o = 0.;
+    for ( int i=0; i < 5; i++ )
+    {
+    	o = o*2. + noise(pos);
+        pos = m * pos * 2.;
+    }
+    return o / 40.0;
+}
+
+vec3 normal2( in vec3 pos, float eps )
+{
+    vec2 e = vec2(1.0,-1.0)*0.5773*eps;
+    float intensity = 0.01;
+    vec3 p1 = pos * 10.5 + e.xyy;
+    vec3 p2 = pos * 10.5 + e.yyx;
+    vec3 p3 = pos * 10.5 + e.yxy;
+    vec3 p4 = pos * 10.5 + e.xxx;
+    float n1 = fbm(p1) * intensity;
+    float n2 = fbm(p2) * intensity;
+    float n3 = fbm(p3) * intensity;
+    float n4 = fbm(p4) * intensity;
+    return normalize( e.xyy*(map( pos + e.xyy ).x + n1) +
+					  e.yyx*(map( pos + e.yyx ).x + n2) +
+					  e.yxy*(map( pos + e.yxy ).x + n3) +
+					  e.xxx*(map( pos + e.xxx ).x + n4) );
+}
+
+vec3 normal3( in vec3 pos, float eps )
 {
     vec2 e = vec2(1.0,-1.0)*0.5773*eps;
     return normalize( e.xyy*(map( pos + e.xyy ).x) +
-                        e.yyx*(map( pos + e.yyx ).x) +
-                        e.yxy*(map( pos + e.yxy ).x) +
-                        e.xxx*(map( pos + e.xxx ).x) );
+					  e.yyx*(map( pos + e.yyx ).x) +
+					  e.yxy*(map( pos + e.yxy ).x) +
+					  e.xxx*(map( pos + e.xxx ).x) );
 }
 
 void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec) {
@@ -236,9 +291,9 @@ void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec
     } else if (mat.y == MAT_BOARD) {
         boardProperty(p, mat, baseColor);
     } else if (mat.y == MAT_LIGHT) {
-        baseColor = vec3(40.0);
+        baseColor = vec3(80.0);
     }
-    normalVec = normal(p, 0.0005);
+    normalVec = normal2(p, 0.0005);
 }
 
 vec3 acesFilm(const vec3 x) {
@@ -272,11 +327,19 @@ vec3 shade(vec3 p, vec3 baseColor, float t) {
     return col;
 }
 
-vec3 shadeWithReflect(vec3 p, vec2 uv, vec3 baseColor, float t) {
+float remap(float val, float inMin, float inMax, float outMin, float outMax)
+{
+    return clamp(outMin + (val - inMin) * (outMax - outMin) / (inMax - inMin), outMin, outMax);
+}
+
+vec3 shadeWithReflect(vec3 p, vec2 uv, vec3 baseColor, float t, vec3 n) {
+    vec3 n2 = n - normal3(p, 0.0005);
     p.x = abs(p.x) - 1.0;
-    float attenuation = 1.0 / (pow(abs(p.x), 2.0) + pow(abs(p.y + 1.5), 2.0) + 6.0);
+    float attenuation = 1.0 / (pow(abs(p.x), 2.0) + pow(abs(p.y + 1.5), 1.5) + 6.0);
     vec3 col = baseColor * vec3(6.0) * attenuation;
-    col += textureLod(reflectTexture, uv, 0.0).rgb * 0.2;
+    
+    float adjust = remap(1.0 - (t / 20.0), 0.0, 1.0, 0.1, 1.0);
+    col += textureLod(reflectTexture, uv - n2.xz*adjust, 0.0).rgb * 0.04;
     col = mix( col, vec3(0.0), 1.0-exp(-t*0.08) );
     return col;
 }
@@ -306,10 +369,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     raymarch(origin, ray, 128, pos, d, t);
     materialToProperty(pos, d, baseColor, n);
 
-    vec3 primaryCol = shadeWithReflect(pos, uv, baseColor, t);
+    vec3 primaryCol = shadeWithReflect(pos, uv, baseColor, t, n);
     col = primaryCol;
 
-    col = acesFilm(col*0.3);
+    col = acesFilm(col*0.15);
     col = pow(col, vec3(1.0/2.2));
     col = colorCollect(col);
 
@@ -348,6 +411,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
 
     vec3 primaryCol = shade(pos, baseColor, t);
 
+    n = normal3(pos, 0.005);
     vec3 r = reflect(ray, n);
     
     raymarch(pos + n*0.01, r, 128, pos, d, t);

@@ -105,6 +105,10 @@ window.onload = function () {
     const blurTextureY2 = new RenderTexture(canvas.width/4, canvas.height/4, gl.FLOAT);
     const blurTextureX3 = new RenderTexture(canvas.width/8, canvas.height/8, gl.FLOAT);
     const blurTextureY3 = new RenderTexture(canvas.width/8, canvas.height/8, gl.FLOAT);
+    const blurTextureX4 = new RenderTexture(canvas.width/16, canvas.height/16, gl.FLOAT);
+    const blurTextureY4 = new RenderTexture(canvas.width/16, canvas.height/16, gl.FLOAT);
+    const blurTextureX5 = new RenderTexture(canvas.width/32, canvas.height/32, gl.FLOAT);
+    const blurTextureY5 = new RenderTexture(canvas.width/32, canvas.height/32, gl.FLOAT);
 
     const texture = TestTextTexture();
 
@@ -141,7 +145,13 @@ window.onload = function () {
         blur(1, 0, blurTextureY2, blurTextureX3, gaussianBlur7Program);
         blur(0, 1, blurTextureX3, blurTextureY3, gaussianBlur7Program);
 
-        SetFilter(blurTextureY3, gl.LINEAR, gl.LINEAR_MIPMAP_LINEAR);
+        blur(1, 0, blurTextureY3, blurTextureX4, gaussianBlur7Program);
+        blur(0, 1, blurTextureX4, blurTextureY4, gaussianBlur7Program);
+
+        blur(1, 0, blurTextureY4, blurTextureX5, gaussianBlur7Program);
+        blur(0, 1, blurTextureX5, blurTextureY5, gaussianBlur7Program);
+
+        //SetFilter(blurTextureY3, gl.LINEAR, gl.LINEAR_MIPMAP_LINEAR);
 
         // Lighting
         renderTexture.Bind();
