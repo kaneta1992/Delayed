@@ -3,49 +3,66 @@
 <meta charset="utf-8"/>
 </head>
 
-<script id="gaussianBlur7" type="x-shader/x-fragment">
+<script id="copy" type="x-shader/x-fragment">
 #version 300 es
 precision highp float;
-uniform vec2  dstResolution;
-uniform vec2  srcResolution;
+uniform vec2  resolution;
+uniform sampler2D tex;
+out vec4 fragColor;
+
+void main( )
+{
+    vec2 uv = gl_FragCoord.xy / resolution;
+    fragColor = textureLod(tex, uv, 0.0);
+}
+</script>
+
+<script id="gaussian" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform vec2  resolution;
 uniform sampler2D tex; 
 uniform vec2 gaussianDir;
 out vec4 fragColor;
 
-vec2[7] offsets = vec2[](
-    vec2(-3, -3), vec2(-2, -2), vec2(-1, -1), vec2(0, 0), vec2(1, 1), vec2(2, 2), vec2(3, 3)
-);
-float[7] weights = float[](
-    0.001, 0.028, 0.233, 0.474, 0.233, 0.028, 0.001
-);
+const float[6] weights = float[](0.200565,0.176998,0.121649,0.0651141,0.0271436,0.00881223);
 
 void main( )
 {
-    vec2 uv = (gl_FragCoord.xy) / dstResolution;
-
-    int NumSamples = 7;
-
-    vec4 result = vec4(0.0);
-
-    vec2 dir = gaussianDir / srcResolution;
-    for(int i = 0; i < NumSamples; i++)
-    {
-        vec2 offset = offsets[i] * dir;
-
-        vec4 sampleColor = texture(tex, uv + offset, 0.0);
-
-        //if(_Fireflies == 1)
-            //sampleColor.rgb /= 1 + Luminance(sampleColor.rgb);
-
-        result += sampleColor * weights[i];
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec3 sum = weights[0] * textureLod(tex, uv, 0.0).rgb;
+    vec2 dir = gaussianDir / resolution;
+    for (int i = 1; i < 6; i++) {
+        vec2 offset = float(i) * dir;
+        sum += weights[i] * textureLod(tex, clamp(uv + offset, 0.0, 1.0), 0.0).rgb;
+        sum += weights[i] * textureLod(tex, clamp(uv - offset, 0.0, 1.0), 0.0).rgb;
     }
-
-    //if(_Fireflies == 1)
-        //result /= 1 - Luminance(result.rgb);
-
-    fragColor=result;
+    fragColor=vec4(sum, 1.0);
 }
+</script>
 
+<script id="sumBloom" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform vec2  resolution;
+uniform sampler2D tex1;
+uniform sampler2D tex2;
+uniform sampler2D tex3;
+uniform sampler2D tex4;
+uniform sampler2D tex5;
+out vec4 fragColor;
+
+void main( )
+{
+    vec2 uv = (gl_FragCoord.xy) / resolution;
+    float intensity = 0.03;
+    vec3 sum = textureLod(tex1, uv, 0.0).rgb * intensity;
+    sum += textureLod(tex2, uv, 0.0).rgb * intensity * 2.0;
+    sum += textureLod(tex3, uv, 0.0).rgb * intensity * 4.0;
+    sum += textureLod(tex4, uv, 0.0).rgb * intensity * 8.0;
+    sum += textureLod(tex5, uv, 0.0).rgb * intensity * 16.0;
+    fragColor=vec4(sum, 1.0);
+}
 </script>
 
 <script id="mainHeader" type="x-shader/x-fragment">
@@ -63,29 +80,6 @@ out vec4 fragColor;
 #define MAT_PILLAR  2.
 #define MAT_BOARD   3.
 #define MAT_LIGHT   4.
-
-float luminance(vec3 col)
-{
-    return dot(vec3(0.298912, 0.586611, 0.114478), col);
-}
-
-vec3 saturation(vec3 col, float scale)
-{
-    return mix(vec3(luminance(col)), col, scale);
-}
-
-vec3 contrast(vec3 col, float scale)
-{
-    return (col - 0.5) * scale + 0.5;
-}
-
-vec3 colorCollect(vec3 col) {
-	col = saturation(col, 0.5);
-    col = contrast(col, 1.2);
-    //col = col * vec3(1.0, 1.2, 1.5);
-    col = col * vec3(1.0, 1.5, 2.0);
-    return col;
-}
 
 float sphere(vec3 p, float s) {
     return length(p) - s;
@@ -291,18 +285,9 @@ void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec
     } else if (mat.y == MAT_BOARD) {
         boardProperty(p, mat, baseColor);
     } else if (mat.y == MAT_LIGHT) {
-        baseColor = vec3(80.0);
+        baseColor = vec3(120.0);
     }
     normalVec = normal2(p, 0.0005);
-}
-
-vec3 acesFilm(const vec3 x) {
-    const float a = 2.51;
-    const float b = 0.03;
-    const float c = 2.43;
-    const float d = 0.59;
-    const float e = 0.14;
-    return clamp((x * (a * x + b)) / (x * (c * x + d ) + e), 0.0, 1.0);
 }
 
 void raymarch(vec3 origin, vec3 ray, int iter, out vec3 pos, out vec2 mat, out float t) {
@@ -340,7 +325,7 @@ vec3 shadeWithReflect(vec3 p, vec2 uv, vec3 baseColor, float t, vec3 n) {
     
     float adjust = remap(1.0 - (t / 20.0), 0.0, 1.0, 0.1, 1.0);
     col += textureLod(reflectTexture, uv - n2.xz*adjust, 0.0).rgb * 0.04;
-    col = mix( col, vec3(0.0), 1.0-exp(-t*0.08) );
+    col = mix( col, vec3(0.0), 1.0-exp(-t*0.04) );
     return col;
 }
 
@@ -371,11 +356,6 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
 
     vec3 primaryCol = shadeWithReflect(pos, uv, baseColor, t, n);
     col = primaryCol;
-
-    col = acesFilm(col*0.15);
-    col = pow(col, vec3(1.0/2.2));
-    col = colorCollect(col);
-
     fragColor = vec4(col,1.0);
 }
 
@@ -457,18 +437,115 @@ void main( )
 }
 </script>
 
-<script id="fs2" type="x-shader/x-fragment">
+<script id="combine" type="x-shader/x-fragment">
     #version 300 es
     precision highp float;
     uniform vec2  resolution;
-    uniform sampler2D tex; 
+    uniform sampler2D tex;
+    uniform sampler2D bloomTex;
     out vec4 fragColor;
+
+    float luminance(vec3 col)
+    {
+        return dot(vec3(0.298912, 0.586611, 0.114478), col);
+    }
+    
+    vec3 saturation(vec3 col, float scale)
+    {
+        return mix(vec3(luminance(col)), col, scale);
+    }
+    
+    vec3 contrast(vec3 col, float scale)
+    {
+        return (col - 0.5) * scale + 0.5;
+    }
+    
+    vec3 colorCollect(vec3 col) {
+        col = saturation(col, 0.5);
+        col = pow(col, vec3(1.5));
+        //col = contrast(col, 1.5);
+        //col = col * vec3(1.0, 1.2, 1.5);
+        //col = col * vec3(1.0, 1.5, 2.0);
+        col = col * vec3(0.6, 0.9, 1.0);
+        //col = col * vec3(0.7, 1.0, 0.8);
+        return col;
+    }
+
+    vec3 acesFilm(const vec3 x) {
+        const float a = 2.51;
+        const float b = 0.03;
+        const float c = 2.43;
+        const float d = 0.59;
+        const float e = 0.14;
+        return clamp((x * (a * x + b)) / (x * (c * x + d ) + e), 0.0, 1.0);
+    }
+
+    // https://www.shadertoy.com/view/MdfBRX
+    float Bokeh(vec2 p, vec2 sp, float size, float mi, float blur)
+    {
+        float d = length(p - sp);
+        float c = smoothstep(size, size*(1.-blur), d);
+        c *= mix(mi, 1., smoothstep(size*.8, size, d));
+        return c;
+    }
+    
+    vec2 hash( vec2 p ){
+        p = vec2( dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));
+        return fract(sin(p)*43758.5453) * 2.0 - 1.0;
+    }
+    
+    vec3 dirt(vec2 uv, float n)
+    {
+        vec2 p = fract(uv * n);
+        vec2 st = (floor(uv * n) + 0.5) / n;
+        vec2 rnd = hash(st);
+        float c = Bokeh(p, vec2(0.5, 0.5) + vec2(0.3) * rnd, 0.2, abs(rnd.y * 0.4) + 0.3, 0.25 + rnd.x * rnd.y * 0.2);
+        
+        return vec3(c) * exp(rnd.x * 4.0);
+    }
+    
+    vec3 dirtTexture(vec2 uv) {
+        uv *= 2.5;
+        vec3 di = vec3(0.0);
+        di += dirt(uv - vec2(0.17), 60.0);
+        di += dirt(uv - vec2(0.17), 30.0);
+        di += dirt(uv - vec2(0.41), 100.75);
+        di += dirt(uv - vec2(0.41), 20.75);
+        return di * 0.01;
+    }
     
     void main( )
     {
+        vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
         vec2 uv = gl_FragCoord.xy / resolution;
-        vec3 col = vec3(uv, 0.5);
-        col = textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb;
+        vec3 col = vec3(0.0);
+
+        if (abs(p.y) > 0.75) {
+            fragColor=vec4(col,1);
+            return;
+        }
+
+        vec3 bloom = textureLod(bloomTex, clamp(uv, 0.0, 1.0), 0.0).rgb * 0.5;
+
+        col = textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb + bloom;
+
+        vec2 dirtuv = gl_FragCoord.xy / min(resolution.x, resolution.y);
+        col +=  pow(bloom, vec3(1.5)) * dirtTexture(dirtuv);
+        col = colorCollect(col);
+        col = acesFilm(col*0.3);
+        col = pow(col, vec3(1.0/2.2));
+        //col = colorCollect(col);
+
+        vec3 sclr = smoothstep(0.0, 1.0, col.rgb);
+
+        col.r = mix(col.r, sclr.r, 1.0);
+        col.g = mix(col.g, sclr.g, 0.8);
+        col.b = mix(col.b, sclr.b, 0.6);
+
+        //col = bloom*0.5;
+
+        
+
         fragColor=vec4(col,1);
     }
     </script>

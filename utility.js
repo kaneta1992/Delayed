@@ -83,9 +83,8 @@ class Texture2D {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
 
-        if (type == gl.UNSIGNED_BYTE) {
-            gl.generateMipmap(gl.TEXTURE_2D);
-        }
+        gl.generateMipmap(gl.TEXTURE_2D);
+
         this.UnBind();
     }
     Activate(slot) {
@@ -124,4 +123,5 @@ class RenderTexture {
     SetViewport() {
         gl.viewport(0.0, 0.0, this.width, this.height);
     }
+    
 }
