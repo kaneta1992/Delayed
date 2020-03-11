@@ -3,6 +3,146 @@
 <meta charset="utf-8"/>
 </head>
 
+<script id="extractFar" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform vec2  resolution;
+uniform sampler2D tex;
+uniform sampler2D depthNormalTexture;
+out vec4 fragColor;
+
+void main( )
+{
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
+
+    if (abs(p.y) > 0.75) {
+        fragColor=vec4(0.0);
+        return;
+    }
+
+    float tapDepth = textureLod(depthNormalTexture, uv, 0.0).w;
+    vec4 col = textureLod(tex, uv, 0.0);
+    if (tapDepth < 40.0) {
+        col = vec4(0.0);
+    }
+    fragColor = col;
+}
+</script>
+
+<script id="extractNear" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform vec2  resolution;
+uniform sampler2D tex;
+uniform sampler2D depthNormalTexture;
+out vec4 fragColor;
+
+void main( )
+{
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
+
+    if (abs(p.y) > 0.75) {
+        fragColor=vec4(0.0);
+        return;
+    }
+
+    float tapDepth = textureLod(depthNormalTexture, uv, 0.0).w;
+    vec4 col = textureLod(tex, uv, 0.0);
+    if (tapDepth > 5.0) {
+        col = vec4(0.0);
+    }
+    fragColor = col;
+}
+</script>
+
+<script id="DOF" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform vec2  resolution;
+uniform sampler2D tex;
+uniform sampler2D depthNormalTexture;
+out vec4 fragColor;
+
+void main( )
+{
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
+    vec3 col = vec3(0.0);
+
+    if (abs(p.y) > 0.75) {
+        fragColor=vec4(col,1);
+        return;
+    }
+
+    vec3 sum;
+    float sumW;
+
+    float depth = textureLod(depthNormalTexture, uv, 0.0).w;
+
+    float center = 10.0;
+    float rad = 5.0;
+    float smo = 0.0;
+    
+    float leftTop = center - rad * 0.5;
+    float rightTop = center + rad * 0.5;
+
+    float blurIntensity = 1.0 - (smoothstep(leftTop - smo, leftTop, depth) - smoothstep(rightTop, rightTop + smo, depth));
+
+    for(int y=-6;y<=6;++y) {
+        for(int x=-6;x<=6;++x) {
+            if(x*x+y*y<37)
+            {
+
+                vec2 offset=vec2(x,y) / resolution;
+                vec2 coord = uv + offset;
+                coord.x = clamp(coord.x, 0.001, 0.999);
+                coord.y = clamp(coord.y, 0.1255, 0.8745);
+                vec4 col = textureLod(tex, coord, 0.0);
+                float w = 1.0 * max(col.w, 0.0001);
+
+                sum += col.rgb * w;
+                sumW += w; 
+            }
+        }
+    }
+    fragColor = vec4(sum / sumW, 1.0);
+}
+</script>
+
+<script id="DOFCombine" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform vec2  resolution;
+uniform sampler2D tex;
+uniform sampler2D depthNormalTexture;
+uniform sampler2D DOFNearTexture;
+uniform sampler2D DOFFarTexture;
+out vec4 fragColor;
+
+void main( )
+{
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
+    vec3 col = vec3(0.0);
+
+    if (abs(p.y) > 0.75) {
+        fragColor=vec4(col,1);
+        return;
+    }
+
+    float depth = textureLod(depthNormalTexture, uv, 0.0).w;
+    vec4 baseCol = textureLod(tex, uv, 0.0);
+    vec4 farCol = textureLod(DOFFarTexture, uv, 0.0);
+    vec4 nearCol = textureLod(DOFNearTexture, uv, 0.0);
+    baseCol.rgb = mix(baseCol, nearCol, pow(clamp((5.0 - depth), 0.0, 1.0), 1.0)).rgb;
+    baseCol.rgb = mix(baseCol, farCol, pow(clamp((depth - 40.0) * 0.2, 0.0, 1.0), 2.0)).rgb;
+    fragColor = baseCol;
+    //fragColor = vec4(mix(baseCol, farCol, pow(clamp((depth - 15.0) * 0.5, 0.0, 1.0), 2.0)).rgb, 1.0);
+}
+</script>
+
 <script id="copy" type="x-shader/x-fragment">
 #version 300 es
 precision highp float;
@@ -379,7 +519,7 @@ vec3 shade(vec3 p, vec3 baseColor, float t) {
     p.x = abs(p.x) - 1.0;
     float attenuation = 1.0 / (pow(abs(p.x), 2.0) + pow(abs(p.y + 1.5), 2.0) + 6.0);
     vec3 col = baseColor * vec3(5.0) * attenuation;
-    col = mix( col, vec3(0.0), 1.0-exp(-t*0.08) );
+    col = mix( col, vec3(0.0), 1.0-exp(-t*0.02) );
     return col;
 }
 
@@ -396,8 +536,17 @@ vec3 shadeWithReflect(vec3 p, vec2 uv, vec3 baseColor, float t, vec3 n) {
     
     float adjust = remap(1.0 - (t / 20.0), 0.0, 1.0, 0.1, 1.0);
     col += textureLod(reflectTexture, uv + n2.xz*adjust*0.5, 0.0).rgb * 0.05;
-    col = mix( col, vec3(0.0), 1.0-exp(-t*0.04) );
+    col = mix( col, vec3(0.0), 1.0-exp(-t*0.02) );
     return col;
+}
+
+void getCamera(vec2 p, out vec3 origin, out vec3 ray) {
+    origin = vec3(sin(iTime*0.2) * 7.0, cos(iTime*0.05), -5.0 + iTime);
+    vec3 target = vec3(0.0, -0.5, iTime);
+    vec3 fo = normalize(target - origin);
+    vec3 si = normalize(cross(vec3(0.0, 1.0, 0.0), fo));
+    vec3 up = normalize(cross(fo, si));
+    ray = normalize(fo * 3.5 + si * p.x + up * p.y);
 }
 
 </script>
@@ -410,13 +559,8 @@ void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
     if (abs(p.y) > 0.75) {
         return;
     }
-
-    vec3 origin = vec3(sin(iTime*0.2) * 7.0, cos(iTime*0.05), -5.0 + iTime);
-    vec3 target = vec3(0.0, 0.0, iTime);
-    vec3 fo = normalize(target - origin);
-    vec3 si = normalize(cross(vec3(0.0, 1.0, 0.0), fo));
-    vec3 up = normalize(cross(fo, si));
-    vec3 ray = normalize(fo * 3.5 + si * p.x + up * p.y);
+    vec3 origin, ray;
+    getCamera(p, origin, ray);
 
     vec3 col, pos;
     vec2 d;
@@ -439,20 +583,15 @@ void main( )
 </script>
 
 <script id="main" type="x-shader/x-fragment">
-void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
+void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
     vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
     vec2 uv = fragCoord.xy / iResolution.xy;
         
     if (abs(p.y) > 0.75) {
         return;
     }
-
-    vec3 origin = vec3(sin(iTime*0.2) * 7.0, cos(iTime*0.05), -5.0 + iTime);
-    vec3 target = vec3(0.0, 0.0, iTime);
-    vec3 fo = normalize(target - origin);
-    vec3 si = normalize(cross(vec3(0.0, 1.0, 0.0), fo));
-    vec3 up = normalize(cross(fo, si));
-    vec3 ray = normalize(fo * 3.5 + si * p.x + up * p.y);
+    vec3 origin, ray;
+    getCamera(p, origin, ray);
 
     vec3 col, pos;
     vec2 d;
@@ -464,13 +603,15 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     vec3 primaryCol = shadeWithReflect(pos, uv, baseColor, t, n);
     col = primaryCol;
     fragColor = vec4(col,1.0);
+    fragColor2 = vec4(n, t);
 }
 
 void main( )
 {
-    vec4 col;
-    mainImage(col, gl_FragCoord.xy);
-    fragColor = col;
+    vec4 col, col2;
+    mainImage(col, col2, gl_FragCoord.xy);
+    fragColor  = col;
+    fragColor2 = col2;
 }
 </script>
 
@@ -482,13 +623,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     if (abs(p.y) > 0.75) {
         return;
     }
-
-    vec3 origin = vec3(sin(iTime*0.2) * 7.0, cos(iTime*0.05), -5.0 + iTime);
-    vec3 target = vec3(0.0, 0.0, iTime);
-    vec3 fo = normalize(target - origin);
-    vec3 si = normalize(cross(vec3(0.0, 1.0, 0.0), fo));
-    vec3 up = normalize(cross(fo, si));
-    vec3 ray = normalize(fo * 3.5 + si * p.x + up * p.y);
+    vec3 origin, ray;
+    getCamera(p, origin, ray);
 
     vec3 col, pos;
     vec2 d;

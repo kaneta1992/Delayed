@@ -64,6 +64,18 @@ function copyTexture(src, dest, program) {
     dest.UnBind();
 }
 
+function copyTexture2(src, dest, program) {
+    dest.Bind();
+    dest.SetViewport();
+
+    program.Use();
+    program.Send2f("resolution", dest.width, dest.height);
+    program.SendTexture2D("tex", src, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    dest.UnBind();
+}
+
 window.onload = function () {
     let canvas = document.createElement("canvas");
 
@@ -103,6 +115,10 @@ window.onload = function () {
     let sumBloomFragmentShader = new Shader(sumBloom.text, gl.FRAGMENT_SHADER);
     let gBufferShader = new Shader(mainHeader.text + GBuffer.text, gl.FRAGMENT_SHADER);
     let blurShader = new Shader(blur50.text, gl.FRAGMENT_SHADER);
+    let DOFShader = new Shader(DOF.text, gl.FRAGMENT_SHADER);
+    let nearShader = new Shader(extractNear.text, gl.FRAGMENT_SHADER);
+    let farShader = new Shader(extractFar.text, gl.FRAGMENT_SHADER);
+    let DOFCombineShader = new Shader(DOFCombine.text, gl.FRAGMENT_SHADER);
 
     let mainProgram = new ShaderProgram();
     let mainReflectProgram = new ShaderProgram();
@@ -113,6 +129,10 @@ window.onload = function () {
     let sumBloomProgram = new ShaderProgram();
     let gBufferProgram = new ShaderProgram();
     let blurProgram = new ShaderProgram();
+    let DOFProgram = new ShaderProgram();
+    let nearProgram = new ShaderProgram();
+    let farProgram = new ShaderProgram();
+    let DOFCombineProgram = new ShaderProgram();
 
     mainProgram.Link(vertexShader, mainFragmentShader);
     mainReflectProgram.Link(vertexShader, mainReflectFragmentShader);
@@ -123,8 +143,12 @@ window.onload = function () {
     sumBloomProgram.Link(vertexShader, sumBloomFragmentShader);
     gBufferProgram.Link(vertexShader, gBufferShader);
     blurProgram.Link(vertexShader, blurShader);
+    DOFProgram.Link(vertexShader, DOFShader);
+    nearProgram.Link(vertexShader, nearShader);
+    farProgram.Link(vertexShader, farShader);
+    DOFCombineProgram.Link(vertexShader, DOFCombineShader);
 
-    const renderTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
+    const renderTexture = new MRTTexture2(canvas.width, canvas.height, gl.FLOAT);
     const reflectTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
 
     const blurTextureX6 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
@@ -141,10 +165,19 @@ window.onload = function () {
     const bloomTextureX5 = new RenderTexture(canvas.width/32, canvas.height/32, gl.FLOAT);
     const bloomTextureY5 = new RenderTexture(canvas.width/32, canvas.height/32, gl.FLOAT);
 
+    const nearTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
+    const farTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
+    const DOFFarTexture = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
+    const DOFNearTexture = new RenderTexture(canvas.width/3, canvas.height/3, gl.FLOAT);
+    const DOFCombineTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
+
     const gBufferTextures = new MRTTexture2(canvas.width, canvas.height, gl.FLOAT);
 
     SetFilter(gBufferTextures.texture0, gl.NEAREST, gl.NEAREST);
     SetFilter(gBufferTextures.texture1, gl.NEAREST, gl.NEAREST);
+    SetFilter(renderTexture.texture0, gl.NEAREST, gl.NEAREST);
+    SetFilter(renderTexture.texture1, gl.NEAREST, gl.NEAREST);
+    //SetFilter(DOFTexture.texture, gl.NEAREST, gl.NEAREST);
 
     const texture = TestTextTexture();
 
@@ -212,8 +245,55 @@ window.onload = function () {
 
         renderTexture.UnBind();
 
+        farTexture.Bind();
+        farTexture.SetViewport();
+        farProgram.Use();
+        farProgram.Send2f("resolution", farTexture.width, farTexture.height);
+        farProgram.SendTexture2D("tex", renderTexture.texture0, 0);
+        farProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        farTexture.UnBind();
+
+        nearTexture.Bind();
+        nearTexture.SetViewport();
+        nearProgram.Use();
+        nearProgram.Send2f("resolution", nearTexture.width, nearTexture.height);
+        nearProgram.SendTexture2D("tex", renderTexture.texture0, 0);
+        nearProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        nearTexture.UnBind();
+
+        DOFFarTexture.Bind();
+        DOFFarTexture.SetViewport();
+        DOFProgram.Use();
+        DOFProgram.Send2f("resolution", DOFFarTexture.width, DOFFarTexture.height);
+        DOFProgram.SendTexture2D("tex", farTexture.texture, 0);
+        DOFProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        DOFFarTexture.UnBind();
+
+        DOFNearTexture.Bind();
+        DOFNearTexture.SetViewport();
+        DOFProgram.Use();
+        DOFProgram.Send2f("resolution", DOFNearTexture.width, DOFNearTexture.height);
+        DOFProgram.SendTexture2D("tex", nearTexture.texture, 0);
+        DOFProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        DOFNearTexture.UnBind();
+
+        DOFCombineTexture.Bind();
+        DOFCombineTexture.SetViewport();
+        DOFCombineProgram.Use();
+        DOFCombineProgram.Send2f("resolution", DOFCombineTexture.width, DOFCombineTexture.height);
+        DOFCombineProgram.SendTexture2D("tex", renderTexture.texture0, 0);
+        DOFCombineProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        DOFCombineProgram.SendTexture2D("DOFFarTexture", DOFFarTexture.texture, 2);
+        DOFCombineProgram.SendTexture2D("DOFNearTexture", DOFNearTexture.texture, 3);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        DOFCombineTexture.UnBind();
+
         //Bloom
-        copyTexture(renderTexture, bloomTextureY1, copyProgram);
+        copyTexture2(renderTexture.texture0, bloomTextureY1, copyProgram);
         blur(1, 0, bloomTextureY1, bloomTextureX1, gaussianProgram);
         blur(0, 1, bloomTextureX1, bloomTextureY1, gaussianProgram);
 
@@ -248,7 +328,7 @@ window.onload = function () {
 
         program2.Use();
         program2.Send2f("resolution", canvas.width, canvas.height);
-        program2.SendTexture2D("tex", renderTexture.texture, 0);
+        program2.SendTexture2D("tex", DOFCombineTexture.texture, 0);
         program2.SendTexture2D("bloomTex", bloomTextureX1.texture, 1);
         gl.viewport(0.0, 0.0, canvas.width, canvas.height);
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
