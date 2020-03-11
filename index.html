@@ -370,15 +370,15 @@ vec2 map(vec3 p) {
 void ceilProperty(vec3 p, vec2 mat, out vec3 baseColor) {
     p.z = mod(p.z + 0.15, 0.3) - 0.15;
     p.z = abs(p.z);
-    float t = smoothstep(0.001, 0.006, p.z);
-    baseColor = vec3(mix(vec3(0.2), vec3(0.5, 0.5, 0.5), t));
+    float t = smoothstep(0.001, 0.015, p.z);
+    baseColor = vec3(mix(vec3(0.4), vec3(0.5, 0.5, 0.5), t));
 }
 
 void floorProperty(vec3 p, vec2 mat, out vec3 baseColor) {
     vec2 latticePos = p.xz;
     latticePos = mod(latticePos + 0.15, 0.3) - 0.15;
     latticePos = abs(latticePos);
-    float latticeAlpha = smoothstep(0.001, 0.006, min(latticePos.x, latticePos.y));
+    float latticeAlpha = smoothstep(0.001, 0.015, min(latticePos.x, latticePos.y));
     
     vec2 blockPos = p.xz;
     blockPos.x = abs(blockPos.x) - 3.5; // block interval
@@ -386,7 +386,7 @@ void floorProperty(vec3 p, vec2 mat, out vec3 baseColor) {
     float blockAlpha = smoothstep(0.006, 0.001, blockPos.x);
     
     
-    baseColor = vec3(mix(vec3(0.2), vec3(0.5, 0.5, 0.5), latticeAlpha));
+    baseColor = vec3(mix(vec3(0.4), vec3(0.5, 0.5, 0.5), latticeAlpha));
     baseColor = vec3(mix(baseColor, vec3(0.6, 0.5, 0.1), blockAlpha));
 }
 
@@ -685,117 +685,158 @@ void main( )
 </script>
 
 <script id="combine" type="x-shader/x-fragment">
-    #version 300 es
-    precision highp float;
-    uniform vec2  resolution;
-    uniform sampler2D tex;
-    uniform sampler2D bloomTex;
-    out vec4 fragColor;
+#version 300 es
+precision highp float;
+uniform vec2  resolution;
+uniform sampler2D tex;
+uniform sampler2D bloomTex;
+out vec4 fragColor;
 
-    float luminance(vec3 col)
-    {
-        return dot(vec3(0.298912, 0.586611, 0.114478), col);
-    }
+float luminance(vec3 col)
+{
+    return dot(vec3(0.298912, 0.586611, 0.114478), col);
+}
+
+vec3 saturation(vec3 col, float scale)
+{
+    return mix(vec3(luminance(col)), col, scale);
+}
+
+vec3 contrast(vec3 col, float scale)
+{
+    return (col - 0.5) * scale + 0.5;
+}
+
+vec3 colorCollect(vec3 col) {
+    col = saturation(col, 0.5);
+    col = pow(col, vec3(1.5));
+    //col = contrast(col, 1.5);
+    //col = col * vec3(1.0, 1.2, 1.5);
+    //col = col * vec3(1.0, 1.5, 2.0);
+    col = col * vec3(0.6, 0.9, 1.0);
+    //col = col * vec3(0.7, 1.0, 0.8);
+    return col;
+}
+
+vec3 acesFilm(const vec3 x) {
+    const float a = 2.51;
+    const float b = 0.03;
+    const float c = 2.43;
+    const float d = 0.59;
+    const float e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d ) + e), 0.0, 1.0);
+}
+
+// https://www.shadertoy.com/view/MdfBRX
+float Bokeh(vec2 p, vec2 sp, float size, float mi, float blur)
+{
+    float d = length(p - sp);
+    float c = smoothstep(size, size*(1.-blur), d);
+    c *= mix(mi, 1., smoothstep(size*.8, size, d));
+    return c;
+}
+
+vec2 hash( vec2 p ){
+    p = vec2( dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));
+    return fract(sin(p)*43758.5453) * 2.0 - 1.0;
+}
+
+vec3 dirt(vec2 uv, float n)
+{
+    vec2 p = fract(uv * n);
+    vec2 st = (floor(uv * n) + 0.5) / n;
+    vec2 rnd = hash(st);
+    float c = Bokeh(p, vec2(0.5, 0.5) + vec2(0.3) * rnd, 0.2, abs(rnd.y * 0.4) + 0.3, 0.25 + rnd.x * rnd.y * 0.2);
     
-    vec3 saturation(vec3 col, float scale)
-    {
-        return mix(vec3(luminance(col)), col, scale);
-    }
-    
-    vec3 contrast(vec3 col, float scale)
-    {
-        return (col - 0.5) * scale + 0.5;
-    }
-    
-    vec3 colorCollect(vec3 col) {
-        col = saturation(col, 0.5);
-        col = pow(col, vec3(1.5));
-        //col = contrast(col, 1.5);
-        //col = col * vec3(1.0, 1.2, 1.5);
-        //col = col * vec3(1.0, 1.5, 2.0);
-        col = col * vec3(0.6, 0.9, 1.0);
-        //col = col * vec3(0.7, 1.0, 0.8);
-        return col;
-    }
+    return vec3(c) * exp(rnd.x * 4.0);
+}
 
-    vec3 acesFilm(const vec3 x) {
-        const float a = 2.51;
-        const float b = 0.03;
-        const float c = 2.43;
-        const float d = 0.59;
-        const float e = 0.14;
-        return clamp((x * (a * x + b)) / (x * (c * x + d ) + e), 0.0, 1.0);
-    }
+vec3 dirtTexture(vec2 uv) {
+    uv *= 2.5;
+    vec3 di = vec3(0.0);
+    di += dirt(uv - vec2(0.17), 60.0);
+    di += dirt(uv - vec2(0.17), 30.0);
+    di += dirt(uv - vec2(0.41), 100.75);
+    di += dirt(uv - vec2(0.41), 20.75);
+    return di * 0.01;
+}
 
-    // https://www.shadertoy.com/view/MdfBRX
-    float Bokeh(vec2 p, vec2 sp, float size, float mi, float blur)
-    {
-        float d = length(p - sp);
-        float c = smoothstep(size, size*(1.-blur), d);
-        c *= mix(mi, 1., smoothstep(size*.8, size, d));
-        return c;
-    }
-    
-    vec2 hash( vec2 p ){
-        p = vec2( dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));
-        return fract(sin(p)*43758.5453) * 2.0 - 1.0;
-    }
-    
-    vec3 dirt(vec2 uv, float n)
-    {
-        vec2 p = fract(uv * n);
-        vec2 st = (floor(uv * n) + 0.5) / n;
-        vec2 rnd = hash(st);
-        float c = Bokeh(p, vec2(0.5, 0.5) + vec2(0.3) * rnd, 0.2, abs(rnd.y * 0.4) + 0.3, 0.25 + rnd.x * rnd.y * 0.2);
-        
-        return vec3(c) * exp(rnd.x * 4.0);
-    }
-    
-    vec3 dirtTexture(vec2 uv) {
-        uv *= 2.5;
-        vec3 di = vec3(0.0);
-        di += dirt(uv - vec2(0.17), 60.0);
-        di += dirt(uv - vec2(0.17), 30.0);
-        di += dirt(uv - vec2(0.41), 100.75);
-        di += dirt(uv - vec2(0.41), 20.75);
-        return di * 0.01;
-    }
-    
-    void main( )
-    {
-        vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
-        vec2 uv = gl_FragCoord.xy / resolution;
-        vec3 col = vec3(0.0);
+void main( )
+{
+    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec3 col = vec3(0.0);
 
-        if (abs(p.y) > 0.75) {
-            fragColor=vec4(col,1);
-            return;
-        }
-
-        vec3 bloom = textureLod(bloomTex, clamp(uv, 0.0, 1.0), 0.0).rgb;
-
-        col = textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb + bloom;
-
-        vec2 dirtuv = gl_FragCoord.xy / min(resolution.x, resolution.y);
-        col +=  pow(bloom, vec3(1.5)) * dirtTexture(dirtuv);
-        col = colorCollect(col);
-        col = acesFilm(col*0.3);
-        col = pow(col, vec3(1.0/2.2));
-        //col = colorCollect(col);
-
-        vec3 sclr = smoothstep(0.0, 1.0, col.rgb);
-
-        col.r = mix(col.r, sclr.r, 1.0);
-        col.g = mix(col.g, sclr.g, 0.8);
-        col.b = mix(col.b, sclr.b, 0.6);
-
-        //col = bloom*0.5;
-        //col = vec3(textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb);
-        
-
+    if (abs(p.y) > 0.75) {
         fragColor=vec4(col,1);
+        return;
     }
-    </script>
+
+    vec3 bloom = textureLod(bloomTex, clamp(uv, 0.0, 1.0), 0.0).rgb;
+    col = textureLod(tex, uv, 0.0).rgb + bloom;
+
+    vec2 dirtuv = gl_FragCoord.xy / min(resolution.x, resolution.y);
+    col +=  pow(bloom, vec3(1.5)) * dirtTexture(dirtuv);
+    col = colorCollect(col);
+    col = acesFilm(col*0.3);
+    col = pow(col, vec3(1.0/2.2));
+    //col = colorCollect(col);
+
+    vec3 sclr = smoothstep(0.0, 1.0, col.rgb);
+
+    col.r = mix(col.r, sclr.r, 1.0);
+    col.g = mix(col.g, sclr.g, 0.8);
+    col.b = mix(col.b, sclr.b, 0.6);
+
+    //col = bloom*0.5;
+    //col = vec3(textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb);
+    
+    p = gl_FragCoord.xy / resolution;
+    p *=  1.0 - p.yx;
+    float vig = p.x*p.y * 30.0;
+    vig = clamp(pow(vig, 0.2), 0.0, 1.0);    
+
+    fragColor=vec4(col*vig,1);
+}
+</script>
+
+<script id="postProcess" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform vec2  resolution;
+uniform sampler2D tex;
+out vec4 fragColor;
+
+void main( )
+{
+    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec3 col = vec3(0.0);
+
+    if (abs(p.y) > 0.75) {
+        fragColor=vec4(col,1);
+        return;
+    }
+
+    p = (gl_FragCoord.xy*2.0-resolution)/resolution.xy; 
+    vec2 uvR = (p+p*dot(p, p)*0.01) * 0.5 + 0.5;
+    vec2 uvG = (p+p*dot(p, p)*0.02) * 0.5 + 0.5;
+    vec2 uvB = (p+p*dot(p, p)*0.03) * 0.5 + 0.5;
+
+    float r = textureLod(tex, uvR, 0.0).r;
+    float g = textureLod(tex, uvG, 0.0).g;
+    float b = textureLod(tex, uvB, 0.0).b;
+
+    col = vec3(r,g,b);
+    
+    p = gl_FragCoord.xy / resolution;
+    p *=  1.0 - p.yx;
+    float vig = p.x*p.y * 30.0;
+    vig = clamp(pow(vig, 0.2), 0.0, 1.0);    
+
+    fragColor=vec4(col*vig,1);
+}
+</script>
 
 <link rel="stylesheet" href="./style.css" />
 
