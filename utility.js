@@ -106,14 +106,15 @@ class RenderTexture {
         this.texture = new Texture2D(width, height);
         this.texture.SetImageData(null, type);
         this.Bind();
-        this.texture.Bind();
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture.texture, 0);
         this.UnBind();
-        this.texture.UnBind();
     }
-
     Bind() {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
+        var bufferList = [
+            gl.COLOR_ATTACHMENT0
+        ];
+        gl.drawBuffers(bufferList);
     }
 
     UnBind() {
@@ -123,5 +124,40 @@ class RenderTexture {
     SetViewport() {
         gl.viewport(0.0, 0.0, this.width, this.height);
     }
-    
+}
+
+class MRTTexture2 {
+    constructor(width, height, type) {
+        this.width = width;
+        this.height = height;
+        this.framebuffer = gl.createFramebuffer();
+
+
+        this.texture0 = new Texture2D(width, height);
+        this.texture0.SetImageData(null, type);
+
+        this.texture1 = new Texture2D(width, height);
+        this.texture1.SetImageData(null, type);
+
+        this.Bind();
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture0.texture, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.texture1.texture, 0);
+        this.UnBind();
+    }
+    Bind() {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
+        var bufferList = [
+            gl.COLOR_ATTACHMENT0,
+            gl.COLOR_ATTACHMENT1
+        ];
+        gl.drawBuffers(bufferList);
+    }
+
+    UnBind() {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
+    SetViewport() {
+        gl.viewport(0.0, 0.0, this.width, this.height);
+    }
 }

@@ -30,14 +30,78 @@ const float[6] weights = float[](0.200565,0.176998,0.121649,0.0651141,0.0271436,
 void main( )
 {
     vec2 uv = gl_FragCoord.xy / resolution;
-    vec3 sum = weights[0] * textureLod(tex, uv, 0.0).rgb;
+
+    vec3 center = textureLod(tex, uv, 0.0).rgb;
+    vec3 sum = weights[0] * center;
+    
     vec2 dir = gaussianDir / resolution;
     for (int i = 1; i < 6; i++) {
         vec2 offset = float(i) * dir;
-        sum += weights[i] * textureLod(tex, clamp(uv + offset, 0.0, 1.0), 0.0).rgb;
-        sum += weights[i] * textureLod(tex, clamp(uv - offset, 0.0, 1.0), 0.0).rgb;
+
+        vec3 right = textureLod(tex, clamp(uv + offset, 0.0, 1.0), 0.0).rgb;
+        vec3 left = textureLod(tex, clamp(uv - offset, 0.0, 1.0), 0.0).rgb;
+        sum += weights[i] * right;
+        sum += weights[i] * left;
     }
+
     fragColor=vec4(sum, 1.0);
+}
+</script>
+
+<script id="blur50" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+uniform vec2  resolution;
+uniform sampler2D tex;
+uniform sampler2D depthNormalTexture;
+uniform sampler2D roughnessTexture;
+uniform vec2 blurDir;
+out vec4 fragColor;
+
+float cosWeight(float i, float power) {
+    float c = clamp(i / 20., -1.57, 1.57);
+    float w = pow(max(0.f, cos(c)), power);
+    return w;
+}
+
+void main( )
+{
+    vec2 uv = gl_FragCoord.xy / resolution;
+
+    vec3 sum = vec3(0.0);
+    vec2 dir = blurDir / resolution;
+    float wSum = 0.0;
+
+    vec4 centerDepthNormal = textureLod(depthNormalTexture, uv, 0.0);
+    float roughness = textureLod(roughnessTexture, uv, 0.0).w;
+
+    vec4 rightDepthNormal;
+
+    for (int i = 0; i <= 50; i++) {
+        vec2 offset = float(i) * dir*(roughness * 2.5);
+
+        rightDepthNormal = textureLod(depthNormalTexture, clamp(uv + offset, 0.0, 1.0), 0.0);
+        vec4 leftDepthNormal = textureLod(depthNormalTexture, clamp(uv - offset, 0.0, 1.0), 0.0);
+
+        vec3 right = textureLod(tex, clamp(uv + offset, 0.0, 1.0), 0.0).rgb;
+        vec3 left = textureLod(tex, clamp(uv - offset, 0.0, 1.0), 0.0).rgb;
+
+        float rightnw = max(0.001, pow(abs(dot(rightDepthNormal.xyz, centerDepthNormal.xyz)), 8.0));
+        float leftnw = max(0.001, pow(abs(dot(leftDepthNormal.xyz, centerDepthNormal.xyz)), 8.0));
+
+        float rightr2 = (rightDepthNormal.w - centerDepthNormal.w) * 1.0;
+        float rightg = exp(-rightr2*rightr2);
+
+        float leftr2 = (leftDepthNormal.w - centerDepthNormal.w) * 1.0;
+        float leftg = exp(-leftr2*leftr2);
+
+        float w = cosWeight(float(i), 1.0);
+        wSum += w * rightg * rightnw + w * leftg * leftnw;
+        sum += w * right * rightg * rightnw;
+        sum += w * left * leftg * leftnw;
+    }
+
+    fragColor=vec4(sum / wSum, 1.0);
 }
 </script>
 
@@ -55,8 +119,8 @@ out vec4 fragColor;
 void main( )
 {
     vec2 uv = (gl_FragCoord.xy) / resolution;
-    float intensity = 0.03;
-    vec3 sum = textureLod(tex1, uv, 0.0).rgb * intensity;
+    float intensity = 0.015;
+    vec3 sum = textureLod(tex1, uv, 0.0).rgb * intensity * 1.0;
     sum += textureLod(tex2, uv, 0.0).rgb * intensity * 2.0;
     sum += textureLod(tex3, uv, 0.0).rgb * intensity * 4.0;
     sum += textureLod(tex4, uv, 0.0).rgb * intensity * 8.0;
@@ -72,8 +136,11 @@ uniform vec2 fullResolution;
 uniform vec2  iResolution; 
 uniform float iTime;
 uniform sampler2D reflectTexture;
+uniform sampler2D depthNormalTexture;
+uniform sampler2D roughnessTexture;
 
-out vec4 fragColor;
+layout (location = 0) out vec4 fragColor;
+layout (location = 1) out vec4 fragColor2;
 
 #define MAT_INSIDE  0.
 #define MAT_OUTSIDE 1.
@@ -147,11 +214,15 @@ vec2 map(vec3 p) {
     boardPos.z = mod(boardPos.z + 10.0, 20.0) - 10.0;
     vec2 board = vec2(boardDistance(boardPos, vec3(0.0, 1.0, 0.0)), MAT_BOARD);
     d = min2(d, board);
-    
+
+    vec3 target = vec3(0.0, -0.5, iTime + 4.0);
+    d = min2(d, vec2(sphere(p - target, 0.3), MAT_LIGHT));
+
     p.y -= 1.5;
     vec2 lights = vec2(lightsDistance(p), MAT_LIGHT);
     
     d = min2(d, lights);
+
     
     return d;
 }
@@ -285,7 +356,7 @@ void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec
     } else if (mat.y == MAT_BOARD) {
         boardProperty(p, mat, baseColor);
     } else if (mat.y == MAT_LIGHT) {
-        baseColor = vec3(120.0);
+        baseColor = vec3(80.0);
     }
     normalVec = normal2(p, 0.0005);
 }
@@ -307,7 +378,7 @@ void raymarch(vec3 origin, vec3 ray, int iter, out vec3 pos, out vec2 mat, out f
 vec3 shade(vec3 p, vec3 baseColor, float t) {
     p.x = abs(p.x) - 1.0;
     float attenuation = 1.0 / (pow(abs(p.x), 2.0) + pow(abs(p.y + 1.5), 2.0) + 6.0);
-    vec3 col = baseColor * vec3(6.0) * attenuation;
+    vec3 col = baseColor * vec3(5.0) * attenuation;
     col = mix( col, vec3(0.0), 1.0-exp(-t*0.08) );
     return col;
 }
@@ -321,15 +392,51 @@ vec3 shadeWithReflect(vec3 p, vec2 uv, vec3 baseColor, float t, vec3 n) {
     vec3 n2 = n - normal3(p, 0.0005);
     p.x = abs(p.x) - 1.0;
     float attenuation = 1.0 / (pow(abs(p.x), 2.0) + pow(abs(p.y + 1.5), 1.5) + 6.0);
-    vec3 col = baseColor * vec3(6.0) * attenuation;
+    vec3 col = baseColor * vec3(5.0) * attenuation;
     
     float adjust = remap(1.0 - (t / 20.0), 0.0, 1.0, 0.1, 1.0);
-    col += textureLod(reflectTexture, uv - n2.xz*adjust, 0.0).rgb * 0.04;
+    col += textureLod(reflectTexture, uv + n2.xz*adjust*0.5, 0.0).rgb * 0.05;
     col = mix( col, vec3(0.0), 1.0-exp(-t*0.04) );
     return col;
 }
 
-    </script>
+</script>
+
+<script id="GBuffer" type="x-shader/x-fragment">
+void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
+    vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
+    vec2 uv = fragCoord.xy / iResolution.xy;
+        
+    if (abs(p.y) > 0.75) {
+        return;
+    }
+
+    vec3 origin = vec3(sin(iTime*0.2) * 7.0, cos(iTime*0.05), -5.0 + iTime);
+    vec3 target = vec3(0.0, 0.0, iTime);
+    vec3 fo = normalize(target - origin);
+    vec3 si = normalize(cross(vec3(0.0, 1.0, 0.0), fo));
+    vec3 up = normalize(cross(fo, si));
+    vec3 ray = normalize(fo * 3.5 + si * p.x + up * p.y);
+
+    vec3 col, pos;
+    vec2 d;
+    float t;
+    vec3 baseColor, n;
+    raymarch(origin, ray, 128, pos, d, t);
+    materialToProperty(pos, d, baseColor, n);
+
+    fragColor  = vec4(n, t);
+    fragColor2 = vec4(d, 1.0, pow(clamp(fbm(pos*2.0)*3.0, 0.0, 1.0), 10.0));
+}
+
+void main( )
+{
+    vec4 col, col2;
+    mainImage(col, col2, gl_FragCoord.xy);
+    fragColor  = col;
+    fragColor2 = col2;
+}
+</script>
 
 <script id="main" type="x-shader/x-fragment">
 void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
@@ -370,6 +477,7 @@ void main( )
 <script id="mainReflect" type="x-shader/x-fragment">
 void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
+    vec2 uv = gl_FragCoord.xy / iResolution;
         
     if (abs(p.y) > 0.75) {
         return;
@@ -386,10 +494,13 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     vec2 d;
     float t;
     vec3 baseColor, n;
-    raymarch(origin, ray, 128, pos, d, t);
-    materialToProperty(pos, d, baseColor, n);
+    vec4 depthNormal = textureLod(depthNormalTexture, uv, 0.0);
+    vec4 matRoughness = textureLod(roughnessTexture, uv, 0.0);
+    t = depthNormal.w;
+    d = matRoughness.xy;
+    pos = origin + ray * t;
 
-    vec3 primaryCol = shade(pos, baseColor, t);
+    materialToProperty(pos, d, baseColor, n);
 
     n = normal3(pos, 0.005);
     vec3 r = reflect(ray, n);
@@ -525,7 +636,7 @@ void main( )
             return;
         }
 
-        vec3 bloom = textureLod(bloomTex, clamp(uv, 0.0, 1.0), 0.0).rgb * 0.5;
+        vec3 bloom = textureLod(bloomTex, clamp(uv, 0.0, 1.0), 0.0).rgb;
 
         col = textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb + bloom;
 
@@ -543,7 +654,7 @@ void main( )
         col.b = mix(col.b, sclr.b, 0.6);
 
         //col = bloom*0.5;
-
+        //col = vec3(textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb);
         
 
         fragColor=vec4(col,1);

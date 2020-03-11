@@ -30,11 +30,26 @@ function blur(x, y, src, dest, program) {
     dest.UnBind();
 }
 
+function reflectionBlur(x, y, src, dest, program, gBufferTextures) {
+    dest.Bind();
+    dest.SetViewport();
+
+    program.Use();
+    program.SendTexture2D("tex", src.texture, 0);
+    program.Send2f("resolution", dest.width, dest.height);
+    program.Send2f("blurDir", x, y);
+    program.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 1);
+    program.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 2);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    dest.UnBind();
+}
+
 function SetFilter(texture, mag, min) {
-    texture.texture.Bind();
+    texture.Bind();
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, mag);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, min);
-    texture.texture.UnBind();
+    texture.UnBind();
 }
 
 function copyTexture(src, dest, program) {
@@ -86,6 +101,8 @@ window.onload = function () {
     let copyFragmentShader = new Shader(copy.text, gl.FRAGMENT_SHADER);
     let gaussianFragmentShader = new Shader(gaussian.text, gl.FRAGMENT_SHADER);
     let sumBloomFragmentShader = new Shader(sumBloom.text, gl.FRAGMENT_SHADER);
+    let gBufferShader = new Shader(mainHeader.text + GBuffer.text, gl.FRAGMENT_SHADER);
+    let blurShader = new Shader(blur50.text, gl.FRAGMENT_SHADER);
 
     let mainProgram = new ShaderProgram();
     let mainReflectProgram = new ShaderProgram();
@@ -94,6 +111,8 @@ window.onload = function () {
     let copyProgram = new ShaderProgram();
     let gaussianProgram = new ShaderProgram();
     let sumBloomProgram = new ShaderProgram();
+    let gBufferProgram = new ShaderProgram();
+    let blurProgram = new ShaderProgram();
 
     mainProgram.Link(vertexShader, mainFragmentShader);
     mainReflectProgram.Link(vertexShader, mainReflectFragmentShader);
@@ -102,20 +121,14 @@ window.onload = function () {
     copyProgram.Link(vertexShader, copyFragmentShader);
     gaussianProgram.Link(vertexShader, gaussianFragmentShader);
     sumBloomProgram.Link(vertexShader, sumBloomFragmentShader);
+    gBufferProgram.Link(vertexShader, gBufferShader);
+    blurProgram.Link(vertexShader, blurShader);
 
     const renderTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
-    const reflectTexture = new RenderTexture(canvas.width/1, canvas.height/1, gl.FLOAT);
+    const reflectTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
 
-    const blurTextureX1 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
-    const blurTextureY1 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
-    const blurTextureX2 = new RenderTexture(canvas.width/4, canvas.height/4, gl.FLOAT);
-    const blurTextureY2 = new RenderTexture(canvas.width/4, canvas.height/4, gl.FLOAT);
-    const blurTextureX3 = new RenderTexture(canvas.width/8, canvas.height/8, gl.FLOAT);
-    const blurTextureY3 = new RenderTexture(canvas.width/8, canvas.height/8, gl.FLOAT);
-    const blurTextureX4 = new RenderTexture(canvas.width/16, canvas.height/16, gl.FLOAT);
-    const blurTextureY4 = new RenderTexture(canvas.width/16, canvas.height/16, gl.FLOAT);
-    const blurTextureX5 = new RenderTexture(canvas.width/32, canvas.height/32, gl.FLOAT);
-    const blurTextureY5 = new RenderTexture(canvas.width/32, canvas.height/32, gl.FLOAT);
+    const blurTextureX6 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
+    const blurTextureY6 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
 
     const bloomTextureX1 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
     const bloomTextureY1 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
@@ -128,6 +141,11 @@ window.onload = function () {
     const bloomTextureX5 = new RenderTexture(canvas.width/32, canvas.height/32, gl.FLOAT);
     const bloomTextureY5 = new RenderTexture(canvas.width/32, canvas.height/32, gl.FLOAT);
 
+    const gBufferTextures = new MRTTexture2(canvas.width, canvas.height, gl.FLOAT);
+
+    SetFilter(gBufferTextures.texture0, gl.NEAREST, gl.NEAREST);
+    SetFilter(gBufferTextures.texture1, gl.NEAREST, gl.NEAREST);
+
     const texture = TestTextTexture();
 
     gl.disable(gl.CULL_FACE);
@@ -135,6 +153,19 @@ window.onload = function () {
 
     let zero = Date.now();
     (function () {
+        requestAnimationFrame(arguments.callee);
+        // GBuffer
+        gBufferTextures.Bind();
+        gBufferTextures.SetViewport();
+
+        gBufferProgram.Use();
+        gBufferProgram.Send2f("iResolution", gBufferTextures.width, gBufferTextures.height);
+        gBufferProgram.Send2f("fullResolution", canvas.width, canvas.height);
+        gBufferProgram.Send1f("iTime", (Date.now() - zero) * 0.001);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        gBufferTextures.UnBind();
+
         // Reflect
         reflectTexture.Bind();
         reflectTexture.SetViewport();
@@ -143,32 +174,20 @@ window.onload = function () {
         mainReflectProgram.Send2f("iResolution", reflectTexture.width, reflectTexture.height);
         mainReflectProgram.Send2f("fullResolution", canvas.width, canvas.height);
         mainReflectProgram.Send1f("iTime", (Date.now() - zero) * 0.001);
+        mainReflectProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 0);
+        mainReflectProgram.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 1);
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        reflectTexture.texture.GenerateMipMap();
 
         reflectTexture.UnBind();
 
 
         //Blur
-        copyTexture(reflectTexture, blurTextureY1, copyProgram);
-        blur(1, 0, blurTextureY1, blurTextureX1, gaussianProgram);
-        blur(0, 1, blurTextureX1, blurTextureY1, gaussianProgram);
-
-        copyTexture(blurTextureY1, blurTextureY2, copyProgram);
-        blur(2, 0, blurTextureY2, blurTextureX2, gaussianProgram);
-        blur(0, 2, blurTextureX2, blurTextureY2, gaussianProgram);
-
-        copyTexture(blurTextureY2, blurTextureY3, copyProgram);
-        blur(2, 0, blurTextureY3, blurTextureX3, gaussianProgram);
-        blur(0, 2, blurTextureX3, blurTextureY3, gaussianProgram);
-
-        copyTexture(blurTextureY3, blurTextureY4, copyProgram);
-        blur(4, 0, blurTextureY4, blurTextureX4, gaussianProgram);
-        blur(0, 4, blurTextureX4, blurTextureY4, gaussianProgram);
-
-        copyTexture(blurTextureY4, blurTextureY5, copyProgram);
-        blur(4, 0, blurTextureY5, blurTextureX5, gaussianProgram);
-        blur(0, 4, blurTextureX5, blurTextureY5, gaussianProgram);
+        //copyTexture(reflectTexture, blurTextureY6, copyProgram);
+        reflectionBlur(1, 0, reflectTexture, blurTextureX6, blurProgram, gBufferTextures);
+        reflectionBlur(0, 1, blurTextureX6, blurTextureY6, blurProgram, gBufferTextures);
 
         //SetFilter(blurTextureY3, gl.LINEAR, gl.LINEAR_MIPMAP_LINEAR);
 
@@ -187,7 +206,7 @@ window.onload = function () {
         mainProgram.Send2f("iResolution", renderTexture.width, renderTexture.height);
         mainProgram.Send2f("fullResolution", canvas.width, canvas.height);
         mainProgram.Send1f("iTime", (Date.now() - zero) * 0.001);
-        program2.SendTexture2D("reflectTexture", blurTextureY2.texture, 0);
+        program2.SendTexture2D("reflectTexture", blurTextureY6.texture, 0);
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
@@ -236,8 +255,5 @@ window.onload = function () {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
         //console.log(gl.getError());
-        
-
-        requestAnimationFrame(arguments.callee);
     })();
 };
