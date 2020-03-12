@@ -50,7 +50,7 @@ void main( )
 
     float tapDepth = textureLod(depthNormalTexture, uv, 0.0).w;
     vec4 col = textureLod(tex, uv, 0.0);
-    if (tapDepth > 5.0) {
+    if (tapDepth > 1.0) {
         col = vec4(0.0);
     }
     fragColor = col;
@@ -136,7 +136,7 @@ void main( )
     vec4 baseCol = textureLod(tex, uv, 0.0);
     vec4 farCol = textureLod(DOFFarTexture, uv, 0.0);
     vec4 nearCol = textureLod(DOFNearTexture, uv, 0.0);
-    baseCol.rgb = mix(baseCol, nearCol, pow(clamp((5.0 - depth), 0.0, 1.0), 1.0)).rgb;
+    baseCol.rgb = mix(baseCol, nearCol, pow(clamp((1.0 - depth), 0.0, 1.0), 1.0)).rgb;
     baseCol.rgb = mix(baseCol, farCol, pow(clamp((depth - 15.0) * 0.05, 0.0, 1.0), 2.0)).rgb;
     fragColor = baseCol;
 }
@@ -286,6 +286,7 @@ layout (location = 1) out vec4 fragColor2;
 #define MAT_PILLAR  2.
 #define MAT_BOARD   3.
 #define MAT_LIGHT   4.
+#define MAT_GOLD   5.
 
 float sphere(vec3 p, float s) {
     return length(p) - s;
@@ -330,6 +331,63 @@ vec2 max2(vec2 a, vec2 b) {
     return a.x > b.x ? a : b;
 }
 
+float hash( float n )
+{
+    return fract(sin(n)*43758.5453);
+}
+
+float noise( in vec3 x )
+{
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+
+    f = f*f*(3.0-2.0*f);
+
+    float n = p.x + p.y*57.0 + 113.0*p.z;
+
+    float res = mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
+                        mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y),
+                    mix(mix( hash(n+113.0), hash(n+114.0),f.x),
+                        mix( hash(n+170.0), hash(n+171.0),f.x),f.y),f.z);
+    return res;
+}
+
+#define repid(p, r) (floor((p + r*.5) / r))
+#define rep(p, r) (mod(p + r*.5, r) - r*.5)
+
+mat2 rotate(float a) {
+	float s = sin(a), c = cos(a);
+    return mat2(c, s, -s, c);
+}
+
+float boxes(vec3 p, float noiseOffset, float interval, float clipNum, float start, float width, float smo, float t) {
+    vec3 modp = rep(p, interval);
+    vec3 id = repid(p, interval);
+    
+    float niz = noise(id + noiseOffset);
+    float niz2 = noise(id + noiseOffset + 200.) * 0.7 + 0.3;
+    
+	float leftTop = start;
+    float rightTop = start + width;
+    float size = smoothstep(leftTop - smo, leftTop, t) - smoothstep(rightTop, rightTop + smo, t);
+    
+    vec3 boxp = modp;
+    boxp.xy *= rotate(niz2 + iTime * niz2);
+    boxp.xz *= rotate(niz2 + iTime * niz2);
+    float d = rBox(boxp, vec3(0.15) * size * niz2, 0.03 * size * niz2);
+    
+    p.z = t;
+    vec3 clipp = abs(p) - vec3(vec2((interval * clipNum) * 0.5), width + smo);
+    float clipd = max(clipp.x, max(clipp.y, clipp.z));
+    
+    if (niz < 0.9 || size <= 0.001) {
+        vec3 latice = abs(modp) - interval*0.5;
+    	d = -max(latice.x, max(latice.y, latice.z))+0.2;
+    }
+    return max(d*0.6, clipd);
+}
+
+
 vec2 map(vec3 p) {
     vec2 floorPos = p.xy;
     floorPos = abs(floorPos) - vec2(5.0, 1.5);
@@ -357,11 +415,14 @@ vec2 map(vec3 p) {
     vec3 target = vec3(0.0, -0.5, iTime + 4.0);
     d = min2(d, vec2(sphere(p - target, 0.3), MAT_LIGHT));
 
+    vec3 q = p;
     p.y -= 1.5;
     vec2 lights = vec2(lightsDistance(p), MAT_LIGHT);
     
     d = min2(d, lights);
 
+    d = min2(d, vec2(boxes(q, 0.0, 0.6, 3.0, 0.0, 1.0, 4.0, p.z - iTime), MAT_GOLD));
+    d = min2(d, vec2(boxes(q - vec3(0., 0.0, 1.0), 100.0, 1.0, 5.0, 0.0, 1.0, 4.0, p.z - iTime), MAT_GOLD));
     
     return d;
 }
@@ -442,16 +503,16 @@ vec3 normal3( in vec3 pos, float eps )
 					  e.xxx*(map( pos + e.xxx ).x) );
 }
 
-void ceilProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
+void ceilProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
     vec3 q = p;
     p.z = mod(p.z + 0.15, 0.3) - 0.15;
     p.z = abs(p.z);
     float t = smoothstep(0.001, 0.015, p.z);
-    baseColor = vec3(mix(vec3(0.49), vec3(0.5, 0.5, 0.5), t));
+    baseColor = vec3(mix(vec3(0.49), vec3(0.6), t));
     roughness = mix(0.6, pow(tileOffset(q*0.5), 2.0) * 0.3, smoothstep(0.001, 0.015, p.z));
 }
 
-void floorProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
+void floorProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
     vec2 latticePos = p.xz;
     latticePos = mod(latticePos + 0.15, 0.3) - 0.15;
     latticePos = abs(latticePos);
@@ -463,7 +524,7 @@ void floorProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
     float blockAlpha = smoothstep(0.006, 0.001, blockPos.x);
     
     
-    baseColor = vec3(mix(vec3(0.4), vec3(0.5, 0.5, 0.5), latticeAlpha));
+    baseColor = vec3(mix(vec3(0.4), vec3(0.6), latticeAlpha));
     baseColor = vec3(mix(baseColor, vec3(0.6, 0.5, 0.1), blockAlpha));
 
     roughness = mix(0.8, pow(tileOffset(p*2.), 2.0) * 0.6, smoothstep(0.001, 0.03, min(latticePos.x, latticePos.y)));
@@ -472,23 +533,23 @@ void floorProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
     //roughness = tileOffset(p * 1.);
 }
 
-void pillarProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
+void pillarProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
     vec3 pillarPos = p;
     pillarPos.y = mod(pillarPos.y + 0.4, 0.8) - 0.4;
     float d = abs(pillarPos.y);
     float pillarAlpha = smoothstep(0.001, 0.006, d);
 
-    baseColor = vec3(mix(vec3(0.2), vec3(0.5, 0.5, 0.5), pillarAlpha));
+    baseColor = vec3(mix(vec3(0.2), vec3(0.6), pillarAlpha));
 
     roughness = mix(1.0, 0.2, pillarAlpha);
 }
 
-void outsideProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
-    baseColor = vec3(0.05, 0.02, 0.005)*3000.0;
+void outsideProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
+    baseColor = vec3(0.05, 0.02, 0.005)*3333.0;
     roughness = 0.2;
 }
 
-void boardProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
+void boardProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
     p -= boardOffset;
     vec2 displayPos = p.xy;
     displayPos.y = abs(displayPos.y + 0.08) - 0.1;
@@ -501,25 +562,30 @@ void boardProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
     roughness = mix(0.4, 0.0, displayAlpha);
 }
 
-void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec, out float roughness) {
+void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec, out float roughness, out float metallic) {
     baseColor = vec3(0.0);
     roughness = 0.0;
+    metallic = 0.0;
     if (mat.y == MAT_INSIDE) {
         if (p.y < 0.0) {
             // floor
-            floorProperty(p, mat, baseColor, roughness);
+            floorProperty(p, mat, baseColor, roughness, metallic);
         } else {
             // ceil
-            ceilProperty(p, mat, baseColor, roughness);
+            ceilProperty(p, mat, baseColor, roughness, metallic);
         }
     } else if (mat.y == MAT_OUTSIDE) {
-        outsideProperty(p, mat, baseColor, roughness);
+        outsideProperty(p, mat, baseColor, roughness, metallic);
     } else if (mat.y == MAT_PILLAR) {
-        pillarProperty(p, mat, baseColor, roughness);
+        pillarProperty(p, mat, baseColor, roughness, metallic);
     } else if (mat.y == MAT_BOARD) {
-        boardProperty(p, mat, baseColor, roughness);
+        boardProperty(p, mat, baseColor, roughness, metallic);
     } else if (mat.y == MAT_LIGHT) {
         baseColor = vec3(30.0);
+    } else if (mat.y == MAT_GOLD) {
+        baseColor = vec3(0.2, 0.2, 0.2);
+        roughness = 0.3;
+        metallic = 0.0;
     }
     normalVec = normal2(p, 0.0005);
 }
@@ -538,7 +604,7 @@ void raymarch(vec3 origin, vec3 ray, int iter, out vec3 pos, out vec2 mat, out f
     }
 }
 
-vec3 shade(vec3 p, vec3 baseColor, float t) {
+vec3 shade(vec3 p, vec3 baseColor, float t, float metallic) {
     p.x = abs(p.x) - 1.0;
     float attenuation = 1.0 / (pow(abs(p.x), 2.0) + pow(abs(p.y + 1.5), 2.) + 6.0);
     vec3 col = baseColor * vec3(5.0) * attenuation;
@@ -565,16 +631,19 @@ vec3 fresnelSchlick_roughness(vec3 F0, float cosTheta, float roughness) {
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-vec3 shadeWithReflect(vec3 p, vec3 ray, vec2 uv, vec3 baseColor, float t, vec3 n) {
+vec3 shadeWithReflect(vec3 p, vec3 ray, vec2 uv, vec3 baseColor, float t, vec3 n, float metallic) {
     vec3 n2 = n - normal3(p, 0.0005);
     p.x = abs(p.x) - 1.0;
     float attenuation = 1.0 / (pow(abs(p.x), 2.0) + pow(abs(p.y + 1.5), 2.) + 6.0);
-    vec3 col = baseColor * vec3(5.0) * attenuation;
+    
 
     float roughness = textureLod(roughnessTexture, uv, 0.0).w;
     //roughness = 0.0;
-    vec3 F  = fresnelSchlick_roughness(vec3(0.04), max(dot(n, -ray), 0.0), roughness);
-    vec3 ref = EnvBRDFApprox(vec3(0.0000), roughness, max(dot(n, -ray), 0.0));
+	vec3 F0 = mix(vec3(0.04), baseColor, metallic);
+    vec3 F  = fresnelSchlick_roughness(F0, max(dot(n, -ray), 0.0), roughness);
+    vec3 kd = mix(vec3(1.0) - F, vec3(0.0), metallic);
+
+    vec3 col = baseColor * vec3(5.0) * attenuation * kd;
     
     float adjust = remap(1.0 - (t / 20.0), 0.0, 1.0, 0.1, 1.0);
     col += textureLod(reflectTexture, uv + n2.xz*adjust*0.15, 0.0).rgb * F;
@@ -606,13 +675,13 @@ void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
 
     vec3 col, pos;
     vec2 d;
-    float t, roughness;
+    float t, roughness, metallic;
     vec3 baseColor, n;
-    raymarch(origin, ray, 128, pos, d, t);
-    materialToProperty(pos, d, baseColor, n, roughness);
+    raymarch(origin, ray, 200, pos, d, t);
+    materialToProperty(pos, d, baseColor, n, roughness, metallic);
 
     fragColor  = vec4(n, t);
-    fragColor2 = vec4(d, 1.0, roughness);
+    fragColor2 = vec4(d, metallic, roughness);
 }
 
 void main( )
@@ -637,7 +706,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
 
     vec3 col, pos;
     vec2 d;
-    float t, roughness;
+    float t, roughness, metallic;
     vec3 baseColor, n;
     vec4 depthNormal = textureLod(depthNormalTexture, uv, 0.0);
     vec4 matRoughness = textureLod(roughnessTexture, uv, 0.0);
@@ -645,9 +714,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     d = matRoughness.xy;
     pos = origin + ray * t;
 
-    materialToProperty(pos, d, baseColor, n, roughness);
+    materialToProperty(pos, d, baseColor, n, roughness, metallic);
 
-    vec3 primaryCol = shadeWithReflect(pos, ray, uv, baseColor, t, n);
+    vec3 primaryCol = shadeWithReflect(pos, ray, uv, baseColor, t, n, metallic);
     col = primaryCol;
     fragColor = vec4(col,1.0);
 }
@@ -673,7 +742,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
 
     vec3 col, pos;
     vec2 d;
-    float t, roughness;
+    float t, roughness, metallic;
     vec3 baseColor, n;
     vec4 depthNormal = textureLod(depthNormalTexture, uv, 0.0);
     vec4 matRoughness = textureLod(roughnessTexture, uv, 0.0);
@@ -681,15 +750,15 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     d = matRoughness.xy;
     pos = origin + ray * t;
 
-    materialToProperty(pos, d, baseColor, n, roughness);
+    materialToProperty(pos, d, baseColor, n, roughness, metallic);
 
     n = normal3(pos, 0.005);
     vec3 r = reflect(ray, n);
     
-    raymarch(pos + n*0.1, r, 64, pos, d, t);
-    materialToProperty(pos, d, baseColor, n, roughness);
+    raymarch(pos + n*0.1, r, 100, pos, d, t);
+    materialToProperty(pos, d, baseColor, n, roughness, metallic);
     
-    vec3 secondaryCol = shade(pos, baseColor, t);
+    vec3 secondaryCol = shade(pos, baseColor, t, metallic);
     
     col = secondaryCol;
 

@@ -79,8 +79,8 @@ function copyTexture2(src, dest, program) {
 window.onload = function () {
     let canvas = document.createElement("canvas");
 
-    let w = window.innerWidth*0.5;
-    let h = window.innerHeight*0.5;
+    let w = window.innerWidth;
+    let h = window.innerHeight;
 
     canvas.width = w;
     canvas.height = h;
