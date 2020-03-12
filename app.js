@@ -224,7 +224,7 @@ window.onload = function () {
 
         //Blur
         //copyTexture(reflectTexture, blurTextureY6, copyProgram);
-        reflectionBlur(1, 0, reflectTexture, blurTextureX6, blurProgram, gBufferTextures);
+        reflectionBlur(0.5, 0, reflectTexture, blurTextureX6, blurProgram, gBufferTextures);
         reflectionBlur(0, 1, blurTextureX6, blurTextureY6, blurProgram, gBufferTextures);
 
         //SetFilter(blurTextureY3, gl.LINEAR, gl.LINEAR_MIPMAP_LINEAR);
@@ -244,7 +244,8 @@ window.onload = function () {
         mainProgram.Send2f("iResolution", renderTexture.width, renderTexture.height);
         mainProgram.Send2f("fullResolution", canvas.width, canvas.height);
         mainProgram.Send1f("iTime", (Date.now() - zero) * 0.001);
-        program2.SendTexture2D("reflectTexture", blurTextureY6.texture, 0);
+        mainProgram.SendTexture2D("reflectTexture", blurTextureY6.texture, 0);
+        mainProgram.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 1);
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
