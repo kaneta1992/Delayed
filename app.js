@@ -79,8 +79,8 @@ function copyTexture2(src, dest, program) {
 window.onload = function () {
     let canvas = document.createElement("canvas");
 
-    let w = window.innerWidth;
-    let h = window.innerHeight;
+    let w = window.innerWidth*0.5;
+    let h = window.innerHeight*0.5;
 
     canvas.width = w;
     canvas.height = h;
@@ -151,8 +151,8 @@ window.onload = function () {
     DOFCombineProgram.Link(vertexShader, DOFCombineShader);
     postProcessProgram.Link(vertexShader, postProcessShader);
 
-    const renderTexture = new MRTTexture2(canvas.width, canvas.height, gl.FLOAT);
-    const reflectTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
+    const renderTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
+    const reflectTexture = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
 
     const blurTextureX6 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
     const blurTextureY6 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
@@ -174,14 +174,13 @@ window.onload = function () {
     const DOFNearTexture = new RenderTexture(canvas.width/3, canvas.height/3, gl.FLOAT);
     const DOFCombineTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
 
-    const prePostProcessTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
+    const prePostProcessTexture = new RenderTexture(canvas.width, canvas.height, gl.UNSIGNED_BYTE);
 
     const gBufferTextures = new MRTTexture2(canvas.width, canvas.height, gl.FLOAT);
 
     SetFilter(gBufferTextures.texture0, gl.NEAREST, gl.NEAREST);
     SetFilter(gBufferTextures.texture1, gl.NEAREST, gl.NEAREST);
-    SetFilter(renderTexture.texture0, gl.NEAREST, gl.NEAREST);
-    SetFilter(renderTexture.texture1, gl.NEAREST, gl.NEAREST);
+    SetFilter(renderTexture.texture, gl.NEAREST, gl.NEAREST);
     //SetFilter(DOFTexture.texture, gl.NEAREST, gl.NEAREST);
 
     const texture = TestTextTexture();
@@ -216,9 +215,6 @@ window.onload = function () {
         mainReflectProgram.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 1);
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-        reflectTexture.texture.GenerateMipMap();
-
         reflectTexture.UnBind();
 
 
@@ -245,6 +241,7 @@ window.onload = function () {
         mainProgram.Send2f("fullResolution", canvas.width, canvas.height);
         mainProgram.Send1f("iTime", (Date.now() - zero) * 0.001);
         mainProgram.SendTexture2D("reflectTexture", blurTextureY6.texture, 0);
+        mainProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 2);
         mainProgram.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 1);
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -255,8 +252,8 @@ window.onload = function () {
         farTexture.SetViewport();
         farProgram.Use();
         farProgram.Send2f("resolution", farTexture.width, farTexture.height);
-        farProgram.SendTexture2D("tex", renderTexture.texture0, 0);
-        farProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        farProgram.SendTexture2D("tex", renderTexture.texture, 0);
+        farProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 1);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         farTexture.UnBind();
 
@@ -264,8 +261,8 @@ window.onload = function () {
         nearTexture.SetViewport();
         nearProgram.Use();
         nearProgram.Send2f("resolution", nearTexture.width, nearTexture.height);
-        nearProgram.SendTexture2D("tex", renderTexture.texture0, 0);
-        nearProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        nearProgram.SendTexture2D("tex", renderTexture.texture, 0);
+        nearProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 1);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         nearTexture.UnBind();
 
@@ -274,7 +271,7 @@ window.onload = function () {
         DOFProgram.Use();
         DOFProgram.Send2f("resolution", DOFFarTexture.width, DOFFarTexture.height);
         DOFProgram.SendTexture2D("tex", farTexture.texture, 0);
-        DOFProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        DOFProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 1);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         DOFFarTexture.UnBind();
 
@@ -283,7 +280,7 @@ window.onload = function () {
         DOFProgram.Use();
         DOFProgram.Send2f("resolution", DOFNearTexture.width, DOFNearTexture.height);
         DOFProgram.SendTexture2D("tex", nearTexture.texture, 0);
-        DOFProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        DOFProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 1);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         DOFNearTexture.UnBind();
 
@@ -291,32 +288,32 @@ window.onload = function () {
         DOFCombineTexture.SetViewport();
         DOFCombineProgram.Use();
         DOFCombineProgram.Send2f("resolution", DOFCombineTexture.width, DOFCombineTexture.height);
-        DOFCombineProgram.SendTexture2D("tex", renderTexture.texture0, 0);
-        DOFCombineProgram.SendTexture2D("depthNormalTexture", renderTexture.texture1, 1);
+        DOFCombineProgram.SendTexture2D("tex", renderTexture.texture, 0);
+        DOFCombineProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 1);
         DOFCombineProgram.SendTexture2D("DOFFarTexture", DOFFarTexture.texture, 2);
         DOFCombineProgram.SendTexture2D("DOFNearTexture", DOFNearTexture.texture, 3);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         DOFCombineTexture.UnBind();
 
         //Bloom
-        copyTexture2(renderTexture.texture0, bloomTextureY1, copyProgram);
-        blur(1, 0, bloomTextureY1, bloomTextureX1, gaussianProgram);
+        //copyTexture2(renderTexture.texture, bloomTextureY1, copyProgram);
+        blur(1, 0, renderTexture, bloomTextureX1, gaussianProgram);
         blur(0, 1, bloomTextureX1, bloomTextureY1, gaussianProgram);
 
-        copyTexture(bloomTextureY1, bloomTextureY2, copyProgram);
-        blur(2, 0, bloomTextureY2, bloomTextureX2, gaussianProgram);
+        //copyTexture(bloomTextureY1, bloomTextureY2, copyProgram);
+        blur(2, 0, bloomTextureY1, bloomTextureX2, gaussianProgram);
         blur(0, 2, bloomTextureX2, bloomTextureY2, gaussianProgram);
 
-        copyTexture(bloomTextureY2, bloomTextureY3, copyProgram);
-        blur(2, 0, bloomTextureY3, bloomTextureX3, gaussianProgram);
+        //copyTexture(bloomTextureY2, bloomTextureY3, copyProgram);
+        blur(2, 0, bloomTextureY2, bloomTextureX3, gaussianProgram);
         blur(0, 2, bloomTextureX3, bloomTextureY3, gaussianProgram);
 
-        copyTexture(bloomTextureY3, bloomTextureY4, copyProgram);
-        blur(4, 0, bloomTextureY4, bloomTextureX4, gaussianProgram);
+        //copyTexture(bloomTextureY3, bloomTextureY4, copyProgram);
+        blur(4, 0, bloomTextureY3, bloomTextureX4, gaussianProgram);
         blur(0, 4, bloomTextureX4, bloomTextureY4, gaussianProgram);
 
-        copyTexture(bloomTextureY4, bloomTextureY5, copyProgram);
-        blur(4, 0, bloomTextureY5, bloomTextureX5, gaussianProgram);
+        //copyTexture(bloomTextureY4, bloomTextureY5, copyProgram);
+        blur(4, 0, bloomTextureY4, bloomTextureX5, gaussianProgram);
         blur(0, 4, bloomTextureX5, bloomTextureY5, gaussianProgram);
 
         sumBloomProgram.Use();

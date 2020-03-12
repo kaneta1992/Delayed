@@ -75,15 +75,15 @@ class Texture2D {
         if (type == gl.UNSIGNED_BYTE) {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.width, this.height, 0, gl.RGBA, type, imageData);
         } else {
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, this.width, this.height, 0, gl.RGBA, type, imageData);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, this.width, this.height, 0, gl.RGBA, type, imageData);
         }
         
         // MipMapを利用する際は、MipMapレベルにちゃんとデータが描画されていることを確認すべし
         // 5時間悩んだ
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
-        gl.generateMipmap(gl.TEXTURE_2D);
+        //gl.generateMipmap(gl.TEXTURE_2D);
 
         this.UnBind();
     }

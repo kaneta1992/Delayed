@@ -216,8 +216,8 @@ void main( )
 
     vec4 rightDepthNormal;
 
-    for (int i = 0; i <= 50; i++) {
-        vec2 offset = float(i) * dir*(roughness * 4.0);
+    for (int i = 0; i <= 20; i++) {
+        vec2 offset = float(i) * dir*(roughness * 8.0);
 
         rightDepthNormal = textureLod(depthNormalTexture, clamp(uv + offset, 0.0, 1.0), 0.0);
         vec4 leftDepthNormal = textureLod(depthNormalTexture, clamp(uv - offset, 0.0, 1.0), 0.0);
@@ -484,7 +484,7 @@ void pillarProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
 }
 
 void outsideProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness) {
-    baseColor = vec3(0.05, 0.02, 0.005);
+    baseColor = vec3(0.05, 0.02, 0.005)*3000.0;
     roughness = 0.2;
 }
 
@@ -625,7 +625,7 @@ void main( )
 </script>
 
 <script id="main" type="x-shader/x-fragment">
-void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
+void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
     vec2 uv = fragCoord.xy / iResolution.xy;
         
@@ -639,21 +639,24 @@ void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
     vec2 d;
     float t, roughness;
     vec3 baseColor, n;
-    raymarch(origin, ray, 128, pos, d, t);
+    vec4 depthNormal = textureLod(depthNormalTexture, uv, 0.0);
+    vec4 matRoughness = textureLod(roughnessTexture, uv, 0.0);
+    t = depthNormal.w;
+    d = matRoughness.xy;
+    pos = origin + ray * t;
+
     materialToProperty(pos, d, baseColor, n, roughness);
 
     vec3 primaryCol = shadeWithReflect(pos, ray, uv, baseColor, t, n);
     col = primaryCol;
     fragColor = vec4(col,1.0);
-    fragColor2 = vec4(n, t);
 }
 
 void main( )
 {
-    vec4 col, col2;
-    mainImage(col, col2, gl_FragCoord.xy);
+    vec4 col;
+    mainImage(col, gl_FragCoord.xy);
     fragColor  = col;
-    fragColor2 = col2;
 }
 </script>
 
@@ -683,7 +686,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     n = normal3(pos, 0.005);
     vec3 r = reflect(ray, n);
     
-    raymarch(pos + n*0.1, r, 128, pos, d, t);
+    raymarch(pos + n*0.1, r, 64, pos, d, t);
     materialToProperty(pos, d, baseColor, n, roughness);
     
     vec3 secondaryCol = shade(pos, baseColor, t);
