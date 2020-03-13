@@ -340,6 +340,8 @@ window.onload = function () {
 
         postProcessProgram.Use();
         postProcessProgram.Send2f("resolution", canvas.width, canvas.height);
+        let bpm69 = (((Date.now() - zero) * 0.001) * 69.0) / 60.0;
+        postProcessProgram.Send1f("time", bpm69);
         postProcessProgram.SendTexture2D("tex", prePostProcessTexture.texture, 0);
         gl.viewport(0.0, 0.0, canvas.width, canvas.height);
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);

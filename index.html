@@ -919,7 +919,17 @@ void main( )
 precision highp float;
 uniform vec2  resolution;
 uniform sampler2D tex;
+uniform float time;
 out vec4 fragColor;
+
+vec4[4] blackOutParam = vec4[](vec4(0.,4.,16.,16.1),vec4(17.,17.1,32.,32.1),vec4(33.,33.1,48.,48.1),vec4(49.,49.1,61.,65.));
+
+float blackOutTime() {
+    float t = time;
+    int id = int(t>17.)+int(t>33.)+int(t>49.);
+    vec4 p = blackOutParam[id];
+    return smoothstep(p.x, p.y, t) - smoothstep(p.z, p.w, t);
+}
 
 void main( )
 {
@@ -948,7 +958,11 @@ void main( )
     float vig = p.x*p.y * 30.0;
     vig = clamp(pow(vig, 0.2), 0.0, 1.0);    
 
-    fragColor=vec4(col*vig,1);
+    col *= vig;
+
+    col *= blackOutTime();
+
+    fragColor=vec4(col,1);
 }
 </script>
 
