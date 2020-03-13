@@ -152,10 +152,10 @@ window.onload = function () {
     postProcessProgram.Link(vertexShader, postProcessShader);
 
     const renderTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
-    const reflectTexture = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
+    const reflectTexture = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
 
-    const blurTextureX6 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
-    const blurTextureY6 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
+    const blurTextureX6 = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
+    const blurTextureY6 = new RenderTexture(canvas.width, canvas.height, gl.FLOAT);
 
     const bloomTextureX1 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
     const bloomTextureY1 = new RenderTexture(canvas.width/2, canvas.height/2, gl.FLOAT);
