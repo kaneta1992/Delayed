@@ -922,13 +922,27 @@ uniform sampler2D tex;
 uniform float time;
 out vec4 fragColor;
 
-vec4[4] blackOutParam = vec4[](vec4(0.,4.,16.,16.1),vec4(17.,17.1,32.,32.1),vec4(33.,33.1,48.,48.1),vec4(49.,49.1,61.,65.));
+vec4[4] blackOutParam = vec4[](vec4(0.,4.,16.,16.1),vec4(17.,17.1,32.,32.1),vec4(33.,33.1,48.5,48.55),vec4(49.,49.1,61.,65.));
 
 float blackOutTime() {
     float t = time;
     int id = int(t>17.)+int(t>33.)+int(t>49.);
     vec4 p = blackOutParam[id];
     return smoothstep(p.x, p.y, t) - smoothstep(p.z, p.w, t);
+}
+
+float hash( float n )
+{
+    return fract(sin(n)*43758.5453);
+}
+
+vec2 disp(vec2 p, float n, float s) {
+    p.y += hash(floor(time*s) + n) * 2.0 - 1.0;
+    vec2 p0 = p, p1 = p;
+    p0 = abs(abs(p0) - 0.4) - 0.25;
+    p1 = abs(abs(p1) - 0.45) - 0.25;
+
+    return vec2(smoothstep(0.0011, 0.001, p0.y), smoothstep(0.0011, 0.001, p1.y));
 }
 
 void main( )
@@ -942,7 +956,14 @@ void main( )
         return;
     }
 
-    p = (gl_FragCoord.xy*2.0-resolution)/resolution.xy; 
+    p = (gl_FragCoord.xy*2.0-resolution)/resolution.xy;
+
+    float glitchPower = 0.0;
+    if (time > 48. && time < 49.) {
+        glitchPower = clamp((time - 48.0) * 10.0, 0.0, 1.0);
+    }
+
+    p += (disp(p, 0.0, 10.) * 0.2 + disp(p*2.0, 100., 30.0) * 0.1) * glitchPower;
     vec2 uvR = (p+p*dot(p, p)*0.01) * 0.5 + 0.5;
     vec2 uvG = (p+p*dot(p, p)*0.02) * 0.5 + 0.5;
     vec2 uvB = (p+p*dot(p, p)*0.03) * 0.5 + 0.5;
