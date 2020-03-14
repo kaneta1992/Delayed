@@ -709,9 +709,9 @@ void getCamera(vec2 p, out vec3 origin, out vec3 ray) {
     float f = 3.5;
 
     if (iTime < 9.0) {
-        float z = tt * 0.5;
-        origin = vec3(5.0, 0.5, z);
-        target = vec3(0.0, -0.5, z * 2.0 + 2.0);
+        float z = tt * 0.5 + 2.0;
+        origin = vec3(5.0, 1.0, z);
+        target = vec3(0.0, -0.5, z * 1.5 + 2.0);
     } else if (iTime < 17.0) {
         float z = tt * 0.5;
         origin = vec3(0.0, 0.0, z);
