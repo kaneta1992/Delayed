@@ -922,7 +922,7 @@ uniform sampler2D tex;
 uniform float time;
 out vec4 fragColor;
 
-vec4[4] blackOutParam = vec4[](vec4(0.,4.,16.,16.1),vec4(17.,17.1,32.,32.1),vec4(33.,33.1,48.5,48.55),vec4(49.,49.1,61.,65.));
+vec4[4] blackOutParam = vec4[](vec4(0.,4.,16.,16.1),vec4(17.,17.1,32.,32.1),vec4(33.,33.1,48.49,48.5),vec4(49.,49.1,61.,65.));
 
 float blackOutTime() {
     float t = time;
@@ -963,10 +963,11 @@ void main( )
         glitchPower = clamp((time - 48.0) * 10.0, 0.0, 1.0);
     }
 
-    p += (disp(p, 0.0, 10.) * 0.2 + disp(p*2.0, 100., 30.0) * 0.1) * glitchPower;
-    vec2 uvR = (p+p*dot(p, p)*0.01) * 0.5 + 0.5;
-    vec2 uvG = (p+p*dot(p, p)*0.02) * 0.5 + 0.5;
-    vec2 uvB = (p+p*dot(p, p)*0.03) * 0.5 + 0.5;
+    vec2 d = (disp(p*0.5, 0.0, 7.) * 0.4 + disp(p*1.2, 100., 15.0) * 0.2) * glitchPower;
+
+    vec2 uvR = (p+p*dot(p, p)*0.01 + d*1.0) * 0.5 + 0.5;
+    vec2 uvG = (p+p*dot(p, p)*0.02 + d*1.2) * 0.5 + 0.5;
+    vec2 uvB = (p+p*dot(p, p)*0.03 + d*1.4) * 0.5 + 0.5;
 
     float r = textureLod(tex, uvR, 0.0).r;
     float g = textureLod(tex, uvG, 0.0).g;
