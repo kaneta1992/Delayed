@@ -582,10 +582,20 @@ void pillarProperty(vec3 p, vec3 n, vec2 mat, out vec3 baseColor, out float roug
     //roughness = mix(1.0, 0.2, pillarAlpha);
 }
 
-void outsideProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
-    float intensity = smoothstep(15.0, 17.0, iTime) * 3500.0 + 1.0;
+float pattern(vec2 uv) {
+    float t = 0.0;
+    for(int i=0;i<=int(mod((iTime-1.)*4., 32.0));i++)t += float(0x84B0849>>i&1);
+    float h2 = hash(t+10.0)*2.0-1.0, h3 = hash(t+4000.0)*2.0-1.0, h4 = hash(t+1000.);
+	uv = floor(uv * vec2(h3*0.05,h2*0.05));
+    return min(1.0, mod(uv.x + uv.y, 2.0 + floor(h4*8.0)));
+}
+
+void outsideProperty(vec3 p, vec3 n, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
+    float intensity = smoothstep(15.0, 17.0, iTime) * 4000.0 + 1.0;
+    if (iTime > 17.0) intensity*=pattern(p.yz*20.0);
+    if (iTime > 33.0) intensity*=pattern(p.yz*60.0);
     baseColor = vec3(0.05, 0.02, 0.005)*intensity;
-    roughness = 0.2;
+    roughness = pow(t3(p*vec3(2.0, 2.0, 2.0), n), 1.0) * 0.6 + 0.1;
 }
 
 void boardProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
@@ -615,7 +625,7 @@ void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec
             ceilProperty(p, mat, baseColor, roughness, metallic);
         }
     } else if (mat.y == MAT_OUTSIDE) {
-        outsideProperty(p, mat, baseColor, roughness, metallic);
+        outsideProperty(p, normalVec, mat, baseColor, roughness, metallic);
     } else if (mat.y == MAT_PILLAR) {
         pillarProperty(p, normalVec, mat, baseColor, roughness, metallic);
     } else if (mat.y == MAT_BOARD) {
@@ -627,8 +637,8 @@ void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec
         roughness = 0.3;
         metallic = 1.0;
     } else if (mat.y == MAT_BLACK) {
-        baseColor = vec3(0.2, 0.2, 0.2);
-        roughness = 0.3;
+        baseColor = vec3(0.2);
+        roughness = 0.1;
         metallic = 0.0;
     } else if (mat.y == MAT_SPHERE) {
         float intensity = smoothstep(13.0, 15.0, iTime) * 5.0 + 1.0;
