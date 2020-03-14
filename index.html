@@ -708,11 +708,12 @@ void getCamera(vec2 p, out vec3 origin, out vec3 ray) {
         target = vec3(0.0, -0.5, z*1.5 + 1.0);
     } else if (iTime < 33.0) {
         float z = tt * 0.5;
-        origin = vec3(sin(tt*0.2) * 7.0, cos(tt*0.05)*1., -5.0 + tt);
+        float ttt = tt + 8.0;
+        origin = vec3(sin(ttt*0.2) * 7.0, cos(ttt*0.05)*1., -4.5 + tt);
         target = vec3(0.0, -0.5, tt);
     } else if (iTime < 49.0) {
         float z = tt * 0.5;
-        origin = vec3(sin(tt*0.2) * 7.0, cos(tt*0.05)*1., -5.0 + tt);
+        origin = vec3(sin(tt*0.25) * 7.0, cos(tt*0.2)*1., -5.0 + tt);
         target = vec3(0.0, -0.5, tt);
     } else if (iTime < 65.0) {
         float z = tt * 0.5;

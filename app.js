@@ -191,7 +191,7 @@ window.onload = function () {
     let zero = Date.now();
     (function () {
         requestAnimationFrame(arguments.callee);
-        let time = (Date.now() - zero) * 0.001 + -5.0;
+        let time = (Date.now() - zero) * 0.001 + 0.0;
         let bpm69 = (time * 69.0) / 60.0;
         
         // GBuffer
