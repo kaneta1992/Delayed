@@ -191,7 +191,7 @@ window.onload = function () {
     let zero = Date.now();
     (function () {
         requestAnimationFrame(arguments.callee);
-        let time = (Date.now() - zero) * 0.001;
+        let time = (Date.now() - zero) * 0.001 + 0.0;
         let bpm69 = (time * 69.0) / 60.0;
         
         // GBuffer
@@ -201,7 +201,7 @@ window.onload = function () {
         gBufferProgram.Use();
         gBufferProgram.Send2f("iResolution", gBufferTextures.width, gBufferTextures.height);
         gBufferProgram.Send2f("fullResolution", canvas.width, canvas.height);
-        gBufferProgram.Send1f("iTime", time);
+        gBufferProgram.Send1f("iTime", bpm69);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
         gBufferTextures.UnBind();
@@ -213,7 +213,7 @@ window.onload = function () {
         mainReflectProgram.Use();
         mainReflectProgram.Send2f("iResolution", reflectTexture.width, reflectTexture.height);
         mainReflectProgram.Send2f("fullResolution", canvas.width, canvas.height);
-        mainReflectProgram.Send1f("iTime", time);
+        mainReflectProgram.Send1f("iTime", bpm69);
         mainReflectProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 0);
         mainReflectProgram.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 1);
         //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -242,7 +242,7 @@ window.onload = function () {
         mainProgram.Use();
         mainProgram.Send2f("iResolution", renderTexture.width, renderTexture.height);
         mainProgram.Send2f("fullResolution", canvas.width, canvas.height);
-        mainProgram.Send1f("iTime", time);
+        mainProgram.Send1f("iTime", bpm69);
         mainProgram.SendTexture2D("reflectTexture", blurTextureY6.texture, 0);
         mainProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 2);
         mainProgram.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 1);

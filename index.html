@@ -288,6 +288,9 @@ layout (location = 1) out vec4 fragColor2;
 #define MAT_LIGHT   4.
 #define MAT_GOLD   5.
 #define MAT_BLACK   6.
+#define MAT_SPHERE   7.
+
+float tt;
 
 float sphere(vec3 p, float s) {
     return length(p) - s;
@@ -373,8 +376,8 @@ float boxes(vec3 p, float noiseOffset, float interval, float clipNum, float star
     float size = smoothstep(leftTop - smo, leftTop, t) - smoothstep(rightTop, rightTop + smo, t);
     
     vec3 boxp = modp;
-    boxp.xy *= rotate(niz2 + iTime * niz2);
-    boxp.xz *= rotate(niz2 + iTime * niz2);
+    boxp.xy *= rotate(niz2 + tt * niz2);
+    boxp.xz *= rotate(niz2 + tt * niz2);
     float d = rBox(boxp, vec3(0.15) * size * niz2, 0.03 * size * niz2);
     
     p.z = t;
@@ -409,7 +412,7 @@ float spaghetti(vec3 p)
         p = abs(p) - 1.0;
     	p.xy = p.xy * rotate(stateTime + rnd2 * pi2) + vec2(0.5, 0.3 + float(i) / float(ite)) * 1. * rnd2;
         
-        b = min(b, rBox(p - vec3(0.0, 0.0, iTime * 0.5), vec3(0.05, 0.05, rnd2 * 1. + iTime * 0.5 + 2.0 ), 0.01));
+        b = min(b, rBox(p - vec3(0.0, 0.0, tt * 0.5), vec3(0.05, 0.05, rnd2 * 1. + tt * 0.5 + 2.0 ), 0.01));
     }
     return b * .6;
 }
@@ -439,20 +442,33 @@ vec2 map(vec3 p) {
     vec2 board = vec2(boardDistance(boardPos, vec3(0.0, 1.0, 0.0)), MAT_BOARD);
     d = min2(d, board);
 
-    vec3 target = vec3(0.0, -0.5, iTime + 4.0);
-    d = min2(d, vec2(sphere(p - target, 0.3), MAT_LIGHT));
+    vec3 spherePos = vec3(0.0);
+    float size = 0.0;
+    if (iTime > 9.0 && iTime < 17.0) {
+        spherePos = vec3(0.0, -0.5, 18.0);
+        size = 0.8;
+    } else if(iTime > 17.0 && iTime < 49.0) {
+        spherePos = vec3(0.0, -0.5, tt + 4.0);
+        size = 0.3;
+    } else if(iTime > 49.0) {
+        spherePos = vec3(0.0, -0.5, -16.0);
+        size = 0.8;
+    }
 
-    vec3 q = p;
+    d = min2(d, vec2(sphere(p - spherePos, size), MAT_SPHERE));
+
+    if (iTime > 17.0 && iTime < 48.0) {
+        d = min2(d, vec2(boxes(p, 0.0, 0.6, 3.0, 0.0, 1.0, 4.0, p.z - tt), MAT_GOLD));
+        d = min2(d, vec2(boxes(p - vec3(0., 0.0, 1.0), 100.0, 1.0, 5.0, 0.0, 1.0, 4.0, p.z - tt), MAT_GOLD));
+    }
+    if (iTime > 33.0 && iTime < 48.0) {
+        d = min2(d, vec2(spaghetti(p), MAT_BLACK));
+    }
+
     p.y -= 1.5;
     vec2 lights = vec2(lightsDistance(p), MAT_LIGHT);
-    
     d = min2(d, lights);
 
-    d = min2(d, vec2(boxes(q, 0.0, 0.6, 3.0, 0.0, 1.0, 4.0, p.z - iTime), MAT_GOLD));
-    d = min2(d, vec2(boxes(q - vec3(0., 0.0, 1.0), 100.0, 1.0, 5.0, 0.0, 1.0, 4.0, p.z - iTime), MAT_GOLD));
-
-    d = min2(d, vec2(spaghetti(q), MAT_BLACK));
-    
     return d;
 }
 
@@ -536,7 +552,7 @@ void floorProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, ou
     baseColor = vec3(mix(vec3(0.4), vec3(0.6), latticeAlpha));
     baseColor = vec3(mix(baseColor, vec3(0.6, 0.5, 0.1), blockAlpha));
 
-    roughness = mix(0.8, pow(tileOffset(p*2.), 2.0) * 0.6, smoothstep(0.001, 0.03, min(latticePos.x, latticePos.y)));
+    roughness = mix(0.8, pow(tileOffset(p*2.), 2.0) * 0.7, smoothstep(0.001, 0.03, min(latticePos.x, latticePos.y)));
     roughness = mix(roughness, 1.0, blockAlpha);
     roughness = clamp(roughness, 0.0, 1.0);
     //roughness = tileOffset(p * 1.);
@@ -554,7 +570,8 @@ void pillarProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, o
 }
 
 void outsideProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
-    baseColor = vec3(0.05, 0.02, 0.005)*3333.0;
+    float intensity = smoothstep(15.0, 17.0, iTime) * 3500.0 + 1.0;
+    baseColor = vec3(0.05, 0.02, 0.005)*intensity;
     roughness = 0.2;
 }
 
@@ -590,7 +607,7 @@ void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec
     } else if (mat.y == MAT_BOARD) {
         boardProperty(p, mat, baseColor, roughness, metallic);
     } else if (mat.y == MAT_LIGHT) {
-        baseColor = vec3(30.0);
+        baseColor = vec3(50.0);
     } else if (mat.y == MAT_GOLD) {
         baseColor = vec3(0.8, 0.7, 0.1);
         roughness = 0.3;
@@ -598,6 +615,14 @@ void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec
     } else if (mat.y == MAT_BLACK) {
         baseColor = vec3(0.2, 0.2, 0.2);
         roughness = 0.3;
+        metallic = 0.0;
+    } else if (mat.y == MAT_SPHERE) {
+        float intensity = smoothstep(13.0, 15.0, iTime) * 5.0 + 1.0;
+        if (iTime > 17.0 && iTime < 49.0) {
+            intensity = exp(-fract(iTime*0.5) * 6.0) * 40.0 + 0.8;
+        }
+        baseColor = vec3(1.0) * intensity;
+        roughness = 0.0;
         metallic = 0.0;
     }
     normalVec = normal3(p, 0.0005);
@@ -621,7 +646,7 @@ vec3 shade(vec3 p, vec3 baseColor, float t, float metallic) {
     p.x = abs(p.x) - 1.0;
     float attenuation = 1.0 / (pow(abs(p.x), 2.0) + pow(abs(p.y + 1.5), 2.) + 6.0);
     vec3 col = baseColor * vec3(5.0) * attenuation;
-    col = mix( col, vec3(0.0), 1.0-exp(-t*0.03) );
+    col = mix( col, vec3(0.05, 0.02, 0.005), 1.0-exp(-t*0.02) );
     return col;
 }
 
@@ -648,17 +673,44 @@ vec3 shadeWithReflect(vec3 p, vec3 ray, vec2 uv, vec3 baseColor, float t, vec3 n
     vec3 col = baseColor * vec3(5.0) * attenuation * kd;
 
     col += textureLod(reflectTexture, uv, 0.0).rgb * F;
-    col = mix( col, vec3(0.0), 1.0-exp(-t*0.03) );
+    col = mix( col, vec3(0.05, 0.02, 0.005), 1.0-exp(-t*0.02) );
     return col;
 }
 
 void getCamera(vec2 p, out vec3 origin, out vec3 ray) {
-    origin = vec3(sin(iTime*0.2) * 7.0, cos(iTime*0.05)*1., -5.0 + iTime);
-    vec3 target = vec3(0.0, -0.5, iTime);
+    tt = iTime*0.9;
+    if (iTime > 48.0 && iTime < 49.0) {
+        tt = 47.0;
+    }
+    vec3 target = vec3(0.0);
+    float f = 3.5;
+
+    if (iTime < 9.0) {
+        float z = tt * 0.5;
+        origin = vec3(5.0, 0.5, z);
+        target = vec3(0.0, -0.5, z * 2.0 + 2.0);
+    } else if (iTime < 17.0) {
+        float z = tt * 0.5;
+        origin = vec3(0.0, 0.0, z);
+        target = vec3(0.0, -0.5, z*1.5 + 1.0);
+    } else if (iTime < 33.0) {
+        float z = tt * 0.5;
+        origin = vec3(sin(tt*0.2) * 7.0, cos(tt*0.05)*1., -5.0 + tt);
+        target = vec3(0.0, -0.5, tt);
+    } else if (iTime < 49.0) {
+        float z = tt * 0.5;
+        origin = vec3(sin(tt*0.2) * 7.0, cos(tt*0.05)*1., -5.0 + tt);
+        target = vec3(0.0, -0.5, tt);
+    } else if (iTime < 65.0) {
+        float z = tt * 0.5;
+        origin = vec3(0.0, 0.0, -z);
+        target = vec3(0.0, -0.5, -z * 0.8);
+    }
+
     vec3 fo = normalize(target - origin);
     vec3 si = normalize(cross(vec3(0.0, 1.0, 0.0), fo));
     vec3 up = normalize(cross(fo, si));
-    ray = normalize(fo * 3.5 + si * p.x + up * p.y);
+    ray = normalize(fo * f + si * p.x + up * p.y);
 }
 
 </script>
@@ -938,10 +990,8 @@ float hash( float n )
 
 vec2 disp(vec2 p, float n, float s) {
     p.y += hash(floor(time*s) + n) * 2.0 - 1.0;
-    vec2 p0 = p, p1 = p;
-    p0 = abs(abs(p0) - 0.4) - 0.25;
-    p1 = abs(abs(p1) - 0.45) - 0.25;
-
+    vec2 p0 = abs(abs(p) - 0.4) - 0.25;
+    vec2 p1 = abs(abs(p) - 0.45) - 0.25;
     return vec2(smoothstep(0.0011, 0.001, p0.y), smoothstep(0.0011, 0.001, p1.y));
 }
 
