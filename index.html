@@ -708,12 +708,12 @@ void getCamera(vec2 p, out vec3 origin, out vec3 ray) {
         target = vec3(0.0, -0.5, z*1.5 + 1.0);
     } else if (iTime < 33.0) {
         float z = tt * 0.5;
-        float ttt = tt + 8.0;
-        origin = vec3(sin(ttt*0.2) * 7.0, cos(ttt*0.05)*1., -4.5 + tt);
+        origin = vec3(sin(tt*0.2) * 7.0, cos(tt*0.08)*1., -5.0 + tt);
         target = vec3(0.0, -0.5, tt);
     } else if (iTime < 49.0) {
         float z = tt * 0.5;
-        origin = vec3(sin(tt*0.25) * 7.0, cos(tt*0.2)*1., -5.0 + tt);
+        float ttt = tt + 0.1;
+        origin = vec3(sin(ttt*0.2) * 7.0, cos(ttt*0.05)*1., -5.0 + tt);
         target = vec3(0.0, -0.5, tt);
     } else if (iTime < 65.0) {
         float z = tt * 0.5;
@@ -988,7 +988,7 @@ uniform sampler2D tex;
 uniform float time;
 out vec4 fragColor;
 
-vec4[4] blackOutParam = vec4[](vec4(0.,4.,16.,16.1),vec4(17.,17.1,32.,32.1),vec4(33.,33.1,48.49,48.5),vec4(49.,49.1,61.,65.));
+vec4[4] blackOutParam = vec4[](vec4(0.,4.,16.,16.1),vec4(17.,17.1,32.,32.1),vec4(33.,33.1,48.39,48.4),vec4(49.,49.1,61.,65.));
 
 float blackOutTime() {
     float t = time;
@@ -1027,7 +1027,7 @@ void main( )
         glitchPower = clamp((time - 48.0) * 10.0, 0.0, 1.0);
     }
 
-    vec2 d = (disp(p*0.5, 0.0, 7.) * 0.4 + disp(p*1.2, 100., 15.0) * 0.2) * glitchPower;
+    vec2 d = (disp(p*0.8, 0.0, 7.) * 0.4 + disp(p*1.6, 100., 15.0) * 0.2) * glitchPower;
 
     vec2 uvR = (p+p*dot(p, p)*0.01 + d*1.0) * 0.5 + 0.5;
     vec2 uvG = (p+p*dot(p, p)*0.02 + d*1.2) * 0.5 + 0.5;

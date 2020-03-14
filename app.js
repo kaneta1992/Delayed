@@ -89,14 +89,9 @@ window.onload = function () {
     document.body.appendChild(canvas);
 
     gl = canvas.getContext("webgl2") || canvas.getContext("experimental-webgl2");
-
-    const ext = gl.getExtension("EXT_color_buffer_float");
-    if (!ext) {
-      alert("need EXT_color_buffer_float");
-      return;
-    }
-
+    gl.getExtension("EXT_color_buffer_float");
     gl.getExtension('OES_texture_float_linear');
+
     const vertex = `
     #version 300 es
     void main()
@@ -181,7 +176,6 @@ window.onload = function () {
     SetFilter(gBufferTextures.texture0, gl.NEAREST, gl.NEAREST);
     SetFilter(gBufferTextures.texture1, gl.NEAREST, gl.NEAREST);
     SetFilter(renderTexture.texture, gl.NEAREST, gl.NEAREST);
-    //SetFilter(DOFTexture.texture, gl.NEAREST, gl.NEAREST);
 
     const texture = TestTextTexture();
 
@@ -191,7 +185,7 @@ window.onload = function () {
     let zero = Date.now();
     (function () {
         requestAnimationFrame(arguments.callee);
-        let time = (Date.now() - zero) * 0.001 + 0.0;
+        let time = (Date.now() - zero) * 0.001 + -5.0;
         let bpm69 = (time * 69.0) / 60.0;
         
         // GBuffer
@@ -216,29 +210,17 @@ window.onload = function () {
         mainReflectProgram.Send1f("iTime", bpm69);
         mainReflectProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 0);
         mainReflectProgram.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 1);
-        //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         reflectTexture.UnBind();
 
-
         //Blur
-        //copyTexture(reflectTexture, blurTextureY6, copyProgram);
         reflectionBlur(0.5, 0, reflectTexture, blurTextureX6, blurProgram, gBufferTextures);
         reflectionBlur(0, 1, blurTextureX6, blurTextureY6, blurProgram, gBufferTextures);
-
-        //SetFilter(blurTextureY3, gl.LINEAR, gl.LINEAR_MIPMAP_LINEAR);
 
         // Lighting
         renderTexture.Bind();
         renderTexture.SetViewport();
 
-        /*
-        program.Use();
-        program.Send2f("resolution", renderTexture.width, renderTexture.height);
-        program.Send2f("fullResolution", canvas.width, canvas.height);
-        program.SendTexture2D("tex", texture, 0);
-        program.Send1f("time", (Date.now() - zero) * 0.001);
-        */
         mainProgram.Use();
         mainProgram.Send2f("iResolution", renderTexture.width, renderTexture.height);
         mainProgram.Send2f("fullResolution", canvas.width, canvas.height);
@@ -246,7 +228,6 @@ window.onload = function () {
         mainProgram.SendTexture2D("reflectTexture", blurTextureY6.texture, 0);
         mainProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 2);
         mainProgram.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 1);
-        //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
         renderTexture.UnBind();
@@ -299,23 +280,18 @@ window.onload = function () {
         DOFCombineTexture.UnBind();
 
         //Bloom
-        //copyTexture2(renderTexture.texture, bloomTextureY1, copyProgram);
         blur(1, 0, renderTexture, bloomTextureX1, gaussianProgram);
         blur(0, 1, bloomTextureX1, bloomTextureY1, gaussianProgram);
 
-        //copyTexture(bloomTextureY1, bloomTextureY2, copyProgram);
         blur(2, 0, bloomTextureY1, bloomTextureX2, gaussianProgram);
         blur(0, 2, bloomTextureX2, bloomTextureY2, gaussianProgram);
 
-        //copyTexture(bloomTextureY2, bloomTextureY3, copyProgram);
         blur(2, 0, bloomTextureY2, bloomTextureX3, gaussianProgram);
         blur(0, 2, bloomTextureX3, bloomTextureY3, gaussianProgram);
 
-        //copyTexture(bloomTextureY3, bloomTextureY4, copyProgram);
         blur(4, 0, bloomTextureY3, bloomTextureX4, gaussianProgram);
         blur(0, 4, bloomTextureX4, bloomTextureY4, gaussianProgram);
 
-        //copyTexture(bloomTextureY4, bloomTextureY5, copyProgram);
         blur(4, 0, bloomTextureY4, bloomTextureX5, gaussianProgram);
         blur(0, 4, bloomTextureX5, bloomTextureY5, gaussianProgram);
 
@@ -337,7 +313,6 @@ window.onload = function () {
         program2.Send2f("resolution", canvas.width, canvas.height);
         program2.SendTexture2D("tex", DOFCombineTexture.texture, 0);
         program2.SendTexture2D("bloomTex", bloomTextureX1.texture, 1);
-        //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         prePostProcessTexture.UnBind();
 
@@ -346,9 +321,8 @@ window.onload = function () {
         postProcessProgram.Send1f("time", bpm69);
         postProcessProgram.SendTexture2D("tex", prePostProcessTexture.texture, 0);
         gl.viewport(0.0, 0.0, canvas.width, canvas.height);
-        //gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-        //console.log(gl.getError());
+        gl.flush();
     })();
 };
