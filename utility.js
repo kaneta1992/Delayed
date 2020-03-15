@@ -71,7 +71,6 @@ class Texture2D {
     }
     SetImageData(imageData, type) {
         this.Bind();
-        console.log(type);
         if (type == gl.UNSIGNED_BYTE) {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.width, this.height, 0, gl.RGBA, type, imageData);
         } else {
@@ -95,6 +94,12 @@ class Texture2D {
     GenerateMipMap() {
         this.Bind();
         gl.generateMipmap(gl.TEXTURE_2D);
+        this.UnBind();
+    }
+    SetFilter(mag, min) {
+        this.Bind();
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, mag);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, min);
         this.UnBind();
     }
 }

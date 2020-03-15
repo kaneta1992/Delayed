@@ -271,7 +271,6 @@ void main( )
 <script id="mainHeader" type="x-shader/x-fragment">
 #version 300 es
 precision highp float;
-uniform vec2 fullResolution;
 uniform vec2  iResolution; 
 uniform float iTime;
 uniform sampler2D reflectTexture;
@@ -846,31 +845,6 @@ void main( )
     vec4 col;
     mainImage(col, gl_FragCoord.xy);
     fragColor = col;
-}
-</script>
-
-<script id="fs" type="x-shader/x-fragment">
-#version 300 es
-precision highp float;
-uniform vec2 fullResolution;
-uniform vec2  resolution; 
-uniform float time;
-uniform sampler2D tex;
-
-out vec4 fragColor;
-
-void main( )
-{
-    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y;
-    vec2 uv = gl_FragCoord.xy / resolution;
-    vec3 col = vec3(p, 0.5);
-    vec2 rate = fullResolution / vec2(1024.0f);
-
-    uv.y = 1.0 - uv.y;
-    uv = uv * rate;
-
-    col = textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb;
-    fragColor=vec4(col,1);
 }
 </script>
 
