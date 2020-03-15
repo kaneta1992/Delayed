@@ -7,26 +7,13 @@
 #version 300 es
 precision highp float;
 uniform vec2  resolution;
-uniform sampler2D tex;
-uniform sampler2D depthNormalTexture;
+uniform sampler2D tex, depthNormalTexture;
 out vec4 fragColor;
 
 void main( )
 {
     vec2 uv = gl_FragCoord.xy / resolution;
-    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
-
-    if (abs(p.y) > 0.75) {
-        fragColor=vec4(0.0);
-        return;
-    }
-
-    float tapDepth = textureLod(depthNormalTexture, uv, 0.0).w;
-    vec4 col = textureLod(tex, uv, 0.0);
-    if (tapDepth < 15.0) {
-        col = vec4(0.0);
-    }
-    fragColor = col;
+    fragColor = mix(textureLod(tex, uv, 0.0), vec4(0.0), float(textureLod(depthNormalTexture, uv, 0.0).w < 15.0));
 }
 </script>
 
@@ -34,26 +21,13 @@ void main( )
 #version 300 es
 precision highp float;
 uniform vec2  resolution;
-uniform sampler2D tex;
-uniform sampler2D depthNormalTexture;
+uniform sampler2D tex, depthNormalTexture;
 out vec4 fragColor;
 
 void main( )
 {
     vec2 uv = gl_FragCoord.xy / resolution;
-    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
-
-    if (abs(p.y) > 0.75) {
-        fragColor=vec4(0.0);
-        return;
-    }
-
-    float tapDepth = textureLod(depthNormalTexture, uv, 0.0).w;
-    vec4 col = textureLod(tex, uv, 0.0);
-    if (tapDepth > 1.0) {
-        col = vec4(0.0);
-    }
-    fragColor = col;
+    fragColor = mix(textureLod(tex, uv, 0.0), vec4(0.0), float(textureLod(depthNormalTexture, uv, 0.0).w > 1.0));
 }
 </script>
 
@@ -62,52 +36,19 @@ void main( )
 precision highp float;
 uniform vec2  resolution;
 uniform sampler2D tex;
-uniform sampler2D depthNormalTexture;
 out vec4 fragColor;
 
 void main( )
 {
     vec2 uv = gl_FragCoord.xy / resolution;
-    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
-    vec3 col = vec3(0.0);
-
-    if (abs(p.y) > 0.75) {
-        fragColor=vec4(col,1);
-        return;
-    }
-
     vec3 sum;
     float sumW;
-
-    float depth = textureLod(depthNormalTexture, uv, 0.0).w;
-
-    float center = 10.0;
-    float rad = 5.0;
-    float smo = 0.0;
-    
-    float leftTop = center - rad * 0.5;
-    float rightTop = center + rad * 0.5;
-
-    float blurIntensity = 1.0 - (smoothstep(leftTop - smo, leftTop, depth) - smoothstep(rightTop, rightTop + smo, depth));
-
     for(int y=-6;y<=6;++y) {
         for(int x=-6;x<=6;++x) {
-            if(x*x+y*y<37)
-            {
-
-                vec2 offset=vec2(x,y) / resolution;
-                vec2 coord = uv + offset;
-                coord.x = clamp(coord.x, 0.001, 0.999);
-                coord.y = clamp(coord.y, 0.1255, 0.8745);
-                vec4 col = textureLod(tex, coord, 0.0);
-                float w = 1.0 * max(col.w, 0.0001);
-
-                sum += col.rgb * w;
-                sumW += w; 
-            }
+            if(x*x+y*y<37) sum += textureLod(tex, uv + vec2(x,y)/resolution, 0.0).rgb;
         }
     }
-    fragColor = vec4(sum / sumW, 1.0);
+    fragColor = vec4(sum / 113., 1.0);
 }
 </script>
 
@@ -115,131 +56,61 @@ void main( )
 #version 300 es
 precision highp float;
 uniform vec2  resolution;
-uniform sampler2D tex;
-uniform sampler2D depthNormalTexture;
-uniform sampler2D DOFNearTexture;
-uniform sampler2D DOFFarTexture;
+uniform sampler2D tex, depthNormalTexture, DOFNearTexture, DOFFarTexture;
 out vec4 fragColor;
 
 void main( )
 {
     vec2 uv = gl_FragCoord.xy / resolution;
-    vec2 p = (gl_FragCoord.xy*2.0-resolution)/resolution.y; 
-    vec3 col = vec3(0.0);
-
-    if (abs(p.y) > 0.75) {
-        fragColor=vec4(col,1);
-        return;
-    }
-
     float depth = textureLod(depthNormalTexture, uv, 0.0).w;
     vec4 baseCol = textureLod(tex, uv, 0.0);
-    vec4 farCol = textureLod(DOFFarTexture, uv, 0.0);
-    vec4 nearCol = textureLod(DOFNearTexture, uv, 0.0);
-    baseCol.rgb = mix(baseCol, nearCol, pow(clamp((1.0 - depth), 0.0, 1.0), 1.0)).rgb;
-    baseCol.rgb = mix(baseCol, farCol, pow(clamp((depth - 15.0) * 0.05, 0.0, 1.0), 2.0)).rgb;
-    fragColor = baseCol;
-}
-</script>
-
-<script id="copy" type="x-shader/x-fragment">
-#version 300 es
-precision highp float;
-uniform vec2  resolution;
-uniform sampler2D tex;
-out vec4 fragColor;
-
-void main( )
-{
-    vec2 uv = gl_FragCoord.xy / resolution;
-    fragColor = textureLod(tex, uv, 0.0);
+    baseCol = mix(baseCol, textureLod(DOFNearTexture, uv, 0.0), pow(clamp((1.0 - depth), 0.0, 1.0), 1.0));
+    fragColor = mix(baseCol, textureLod(DOFFarTexture, uv, 0.0), pow(clamp((depth - 15.0) * 0.05, 0.0, 1.0), 2.0));
 }
 </script>
 
 <script id="gaussian" type="x-shader/x-fragment">
 #version 300 es
 precision highp float;
-uniform vec2  resolution;
+uniform vec2  resolution, gaussianDir;
 uniform sampler2D tex; 
-uniform vec2 gaussianDir;
 out vec4 fragColor;
-
-const float[6] weights = float[](0.200565,0.176998,0.121649,0.0651141,0.0271436,0.00881223);
 
 void main( )
 {
-    vec2 uv = gl_FragCoord.xy / resolution;
-
-    vec3 center = textureLod(tex, uv, 0.0).rgb;
-    vec3 sum = weights[0] * center;
-    
-    vec2 dir = gaussianDir / resolution;
-    for (int i = 1; i < 6; i++) {
-        vec2 offset = float(i) * dir;
-
-        vec3 right = textureLod(tex, clamp(uv + offset, 0.0, 1.0), 0.0).rgb;
-        vec3 left = textureLod(tex, clamp(uv - offset, 0.0, 1.0), 0.0).rgb;
-        sum += weights[i] * right;
-        sum += weights[i] * left;
+    vec2 uv = gl_FragCoord.xy / resolution, dir = gaussianDir / resolution;
+    vec4 sum = vec4(0.0);
+    for (int i = -5; i <= 5; i++) {
+        sum += float[](0.200565,0.176998,0.121649,0.0651141,0.0271436,0.00881223)[abs(i)] * textureLod(tex, uv + float(i) * dir, 0.0);
     }
-
-    fragColor=vec4(sum, 1.0);
+    fragColor=sum;
 }
 </script>
 
-<script id="blur50" type="x-shader/x-fragment">
+<script id="blurReflection" type="x-shader/x-fragment">
 #version 300 es
 precision highp float;
-uniform vec2  resolution;
-uniform sampler2D tex;
-uniform sampler2D depthNormalTexture;
-uniform sampler2D roughnessTexture;
-uniform vec2 blurDir;
+uniform vec2  resolution, blurDir;
+uniform sampler2D tex, depthNormalTexture, roughnessTexture;
 out vec4 fragColor;
-
-float cosWeight(float i, float power) {
-    float c = clamp(i / 20., -1.57, 1.57);
-    float w = pow(max(0.f, cos(c)), power);
-    return w;
-}
 
 void main( )
 {
-    vec2 uv = gl_FragCoord.xy / resolution;
-
+    vec2 uv = gl_FragCoord.xy / resolution, dir = blurDir / resolution;
     vec3 sum = vec3(0.0);
-    vec2 dir = blurDir / resolution;
     float wSum = 0.0;
-
     vec4 centerDepthNormal = textureLod(depthNormalTexture, uv, 0.0);
     float roughness = textureLod(roughnessTexture, uv, 0.0).w;
-
-    vec4 rightDepthNormal;
-
-    for (int i = 0; i <= 20; i++) {
+    for (int i = -20; i <= 20; i++) {
         vec2 offset = float(i) * dir*(roughness * 8.0);
-
-        rightDepthNormal = textureLod(depthNormalTexture, clamp(uv + offset, 0.0, 1.0), 0.0);
-        vec4 leftDepthNormal = textureLod(depthNormalTexture, clamp(uv - offset, 0.0, 1.0), 0.0);
-
-        vec3 right = textureLod(tex, clamp(uv + offset, 0.0, 1.0), 0.0).rgb;
-        vec3 left = textureLod(tex, clamp(uv - offset, 0.0, 1.0), 0.0).rgb;
-
-        float rightnw = max(0.001, pow(abs(dot(rightDepthNormal.xyz, centerDepthNormal.xyz)), 8.0));
-        float leftnw = max(0.001, pow(abs(dot(leftDepthNormal.xyz, centerDepthNormal.xyz)), 8.0));
-
-        float rightr2 = (rightDepthNormal.w - centerDepthNormal.w) * 1.0;
-        float rightg = exp(-rightr2*rightr2);
-
-        float leftr2 = (leftDepthNormal.w - centerDepthNormal.w) * 1.0;
-        float leftg = exp(-leftr2*leftr2);
-
-        float w = cosWeight(float(i), 1.0);
-        wSum += w * rightg * rightnw + w * leftg * leftnw;
-        sum += w * right * rightg * rightnw;
-        sum += w * left * leftg * leftnw;
+        vec4 tapDepthNormal = textureLod(depthNormalTexture, uv + offset, 0.0);
+        float nw = max(0.001, pow(abs(dot(tapDepthNormal.xyz, centerDepthNormal.xyz)), 8.0));
+        float r2 = (tapDepthNormal.w - centerDepthNormal.w) * 1.0;
+        // https://github.com/keijiro/AdamPlaneReflection/blob/master/Assets/AdamPlaneReflection/PlaneReflection/Convolve.shader#L92-L93
+        float w = max(0.f, cos(clamp(float(i) / 20., -1.57, 1.57))) * nw * exp(-r2*r2);
+        wSum += w;
+        sum += w * textureLod(tex, uv + offset, 0.0).rgb;
     }
-
     fragColor=vec4(sum / wSum, 1.0);
 }
 </script>
@@ -248,11 +119,7 @@ void main( )
 #version 300 es
 precision highp float;
 uniform vec2  resolution;
-uniform sampler2D tex1;
-uniform sampler2D tex2;
-uniform sampler2D tex3;
-uniform sampler2D tex4;
-uniform sampler2D tex5;
+uniform sampler2D tex1, tex2, tex3, tex4, tex5;
 out vec4 fragColor;
 
 void main( )
@@ -273,9 +140,7 @@ void main( )
 precision highp float;
 uniform vec2  iResolution; 
 uniform float iTime;
-uniform sampler2D reflectTexture;
-uniform sampler2D depthNormalTexture;
-uniform sampler2D roughnessTexture;
+uniform sampler2D reflectTexture, depthNormalTexture, roughnessTexture;
 
 layout (location = 0) out vec4 fragColor;
 layout (location = 1) out vec4 fragColor2;
@@ -554,7 +419,6 @@ void floorProperty(vec3 p, vec2 mat, out vec3 baseColor, out float roughness, ou
     roughness = mix(0.8, pow(tileOffset(p.xz*2.), 2.0) * 0.7, smoothstep(0.001, 0.03, min(latticePos.x, latticePos.y)));
     roughness = mix(roughness, 1.0, blockAlpha);
     roughness = clamp(roughness, 0.0, 1.0);
-    //roughness = tileOffset(p.xz * 1.);
 }
 
 float t3(vec3 p, vec3 n)
@@ -571,14 +435,10 @@ void pillarProperty(vec3 p, vec3 n, vec2 mat, out vec3 baseColor, out float roug
     float pillarAlpha = smoothstep(0.001, 0.006, d);
 
     baseColor = vec3(mix(vec3(0.2), vec3(0.55), pillarAlpha));
-
-    //roughness = pow(tileOffset(p*10.), 3.0) * 0.6 + 0.1;
     roughness = pow(abs(p.y) - 0.5, 2.0) * 0.4;
     roughness += pow(t3(p*vec3(8.0, 2.0, 8.0), n), 1.0) * 0.3 + 0.1;
     roughness = mix(0.8, roughness, pillarAlpha);
     roughness = clamp(roughness, 0.0, 1.0);
-
-    //roughness = mix(1.0, 0.2, pillarAlpha);
 }
 
 float pattern(vec2 uv) {
@@ -672,11 +532,6 @@ vec3 shade(vec3 p, vec3 baseColor, float t, float metallic) {
     return col;
 }
 
-float remap(float val, float inMin, float inMax, float outMin, float outMax)
-{
-    return clamp(outMin + (val - inMin) * (outMax - outMin) / (inMax - inMin), outMin, outMax);
-}
-
 vec3 fresnelSchlick_roughness(vec3 F0, float cosTheta, float roughness) {
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
@@ -685,9 +540,7 @@ vec3 shadeWithReflect(vec3 p, vec3 ray, vec2 uv, vec3 baseColor, float t, vec3 n
     p.x = abs(p.x) - 1.0;
     float attenuation = 1.0 / (pow(abs(p.x), 2.0) + pow(abs(p.y + 1.5), 2.) + 6.0);
     
-
     float roughness = textureLod(roughnessTexture, uv, 0.0).w;
-    //roughness = 0.0;
 	vec3 F0 = mix(vec3(0.04), baseColor, metallic);
     vec3 F  = fresnelSchlick_roughness(F0, max(dot(n, -ray), 0.0), roughness);
     vec3 kd = mix(vec3(1.0) - F, vec3(0.0), metallic);
@@ -753,7 +606,7 @@ void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
     vec2 d;
     float t, roughness, metallic;
     vec3 baseColor, n;
-    raymarch(origin, ray, 250, pos, d, t);
+    raymarch(origin, ray, 150, pos, d, t);
     materialToProperty(pos, d, baseColor, n, roughness, metallic);
 
     fragColor  = vec4(n, t);
@@ -848,7 +701,7 @@ void main( )
 }
 </script>
 
-<script id="combine" type="x-shader/x-fragment">
+<script id="combineBloomAndFilters" type="x-shader/x-fragment">
 #version 300 es
 precision highp float;
 uniform vec2  resolution;
@@ -874,11 +727,7 @@ vec3 contrast(vec3 col, float scale)
 vec3 colorCollect(vec3 col) {
     col = saturation(col, 0.5);
     col = pow(col, vec3(1.5));
-    //col = contrast(col, 1.5);
-    //col = col * vec3(1.0, 1.2, 1.5);
-    //col = col * vec3(1.0, 1.5, 2.0);
     col = col * vec3(0.6, 0.9, 1.0);
-    //col = col * vec3(0.7, 1.0, 0.8);
     return col;
 }
 
@@ -941,10 +790,10 @@ void main( )
 
     vec2 dirtuv = gl_FragCoord.xy / min(resolution.x, resolution.y);
     col +=  pow(bloom, vec3(1.5)) * dirtTexture(dirtuv);
+
     col = colorCollect(col);
     col = acesFilm(col*0.3);
     col = pow(col, vec3(1.0/2.2));
-    //col = colorCollect(col);
 
     vec3 sclr = smoothstep(0.0, 1.0, col.rgb);
 
@@ -952,15 +801,7 @@ void main( )
     col.g = mix(col.g, sclr.g, 0.8);
     col.b = mix(col.b, sclr.b, 0.6);
 
-    //col = bloom*0.5;
-    //col = vec3(textureLod(tex, clamp(uv, 0.0, 1.0), 0.0).rgb);
-    
-    p = gl_FragCoord.xy / resolution;
-    p *=  1.0 - p.yx;
-    float vig = p.x*p.y * 30.0;
-    vig = clamp(pow(vig, 0.2), 0.0, 1.0);    
-
-    fragColor=vec4(col*vig,1);
+    fragColor=vec4(col,1);
 }
 </script>
 
@@ -1022,16 +863,12 @@ void main( )
     float b = textureLod(tex, uvB, 0.0).b;
 
     col = vec3(r,g,b);
-    
     p = gl_FragCoord.xy / resolution;
     p *=  1.0 - p.yx;
     float vig = p.x*p.y * 30.0;
-    vig = clamp(pow(vig, 0.2), 0.0, 1.0);    
-
+    vig = clamp(pow(vig, 0.5), 0.0, 1.0);    
     col *= vig;
-
     col *= blackOutTime();
-
     fragColor=vec4(col,1);
 }
 </script>
