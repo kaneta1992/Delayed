@@ -702,7 +702,7 @@ vec3 shadeWithReflect(vec3 p, vec3 ray, vec2 uv, vec3 baseColor, float t, vec3 n
 
 void getCamera(vec2 p, out vec3 origin, out vec3 ray) {
     tt = iTime*0.9;
-    if (iTime > 48.0 && iTime < 49.0) {
+    if (iTime > 48.05 && iTime < 49.0) {
         tt = 47.0;
     }
     vec3 target = vec3(0.0);
@@ -754,7 +754,7 @@ void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
     vec2 d;
     float t, roughness, metallic;
     vec3 baseColor, n;
-    raymarch(origin, ray, 150, pos, d, t);
+    raymarch(origin, ray, 250, pos, d, t);
     materialToProperty(pos, d, baseColor, n, roughness, metallic);
 
     fragColor  = vec4(n, t);
@@ -1033,7 +1033,7 @@ void main( )
     p = (gl_FragCoord.xy*2.0-resolution)/resolution.xy;
 
     float glitchPower = 0.0;
-    if (time > 48. && time < 49.) {
+    if (time > 48.05 && time < 49.) {
         glitchPower = clamp((time - 48.0) * 10.0, 0.0, 1.0);
     }
 
