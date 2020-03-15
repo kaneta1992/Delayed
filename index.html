@@ -140,10 +140,12 @@ void main( )
 precision highp float;
 uniform vec2  iResolution; 
 uniform float iTime;
-uniform sampler2D reflectTexture, depthNormalTexture, roughnessTexture;
+uniform sampler2D reflectTexture, depthNormalTexture, roughnessTexture, baseColorTexture;
 
 layout (location = 0) out vec4 fragColor;
 layout (location = 1) out vec4 fragColor2;
+layout (location = 2) out vec4 fragColor3;
+layout (location = 3) out vec4 fragColor4;
 
 #define MAT_INSIDE  0.
 #define MAT_OUTSIDE 1.
@@ -592,7 +594,7 @@ void getCamera(vec2 p, out vec3 origin, out vec3 ray) {
 </script>
 
 <script id="GBuffer" type="x-shader/x-fragment">
-void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
+void mainImage( out vec4 fragColor, out vec4 fragColor2, out vec4 fragColor3, out vec4 fragColor4, in vec2 fragCoord ) {
     vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
     vec2 uv = fragCoord.xy / iResolution.xy;
         
@@ -611,18 +613,27 @@ void mainImage( out vec4 fragColor, out vec4 fragColor2, in vec2 fragCoord ) {
 
     fragColor  = vec4(n, t);
     fragColor2 = vec4(d, metallic, roughness);
+    fragColor3 = vec4(baseColor, 1.0);
+
+    vec3 r = reflect(ray, n);
+    raymarch(pos + n*0.1, r, 100, pos, d, t);
+    materialToProperty(pos, d, baseColor, n, roughness, metallic);
+    vec3 reflectCol = shade(pos, baseColor, t, metallic);
+    fragColor4 = vec4(reflectCol, 1.0);
 }
 
 void main( )
 {
-    vec4 col, col2;
-    mainImage(col, col2, gl_FragCoord.xy);
+    vec4 col, col2, col3, col4;
+    mainImage(col, col2, col3, col4, gl_FragCoord.xy);
     fragColor  = col;
     fragColor2 = col2;
+    fragColor3  = col3;
+    fragColor4 = col4;
 }
 </script>
 
-<script id="main" type="x-shader/x-fragment">
+<script id="shade" type="x-shader/x-fragment">
 void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
     vec2 uv = fragCoord.xy / iResolution.xy;
@@ -633,21 +644,16 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     vec3 origin, ray;
     getCamera(p, origin, ray);
 
-    vec3 col, pos;
-    vec2 d;
-    float t, roughness, metallic;
-    vec3 baseColor, n;
+    vec3 baseColor = textureLod(baseColorTexture, uv, 0.0).rgb;
     vec4 depthNormal = textureLod(depthNormalTexture, uv, 0.0);
     vec4 matRoughness = textureLod(roughnessTexture, uv, 0.0);
-    t = depthNormal.w;
-    d = matRoughness.xy;
-    pos = origin + ray * t;
-
-    materialToProperty(pos, d, baseColor, n, roughness, metallic);
+    vec3 n = depthNormal.rgb;
+    float t = depthNormal.w, roughness = matRoughness.w, metallic = matRoughness.z;
+    vec2 d = matRoughness.xy;
+    vec3 pos = origin + ray * t;
 
     vec3 primaryCol = shadeWithReflect(pos, ray, uv, baseColor, t, n, metallic);
-    col = primaryCol;
-    fragColor = vec4(col,1.0);
+    fragColor = vec4(primaryCol,1.0);
 }
 
 void main( )
@@ -655,49 +661,6 @@ void main( )
     vec4 col;
     mainImage(col, gl_FragCoord.xy);
     fragColor  = col;
-}
-</script>
-
-<script id="mainReflect" type="x-shader/x-fragment">
-void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
-    vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
-    vec2 uv = gl_FragCoord.xy / iResolution;
-        
-    if (abs(p.y) > 0.75) {
-        return;
-    }
-    vec3 origin, ray;
-    getCamera(p, origin, ray);
-
-    vec3 col, pos;
-    vec2 d;
-    float t, roughness, metallic;
-    vec3 baseColor, n;
-    vec4 depthNormal = textureLod(depthNormalTexture, uv, 0.0);
-    vec4 matRoughness = textureLod(roughnessTexture, uv, 0.0);
-    t = depthNormal.w;
-    d = matRoughness.xy;
-    pos = origin + ray * t;
-
-    materialToProperty(pos, d, baseColor, n, roughness, metallic);
-
-    vec3 r = reflect(ray, n);
-    
-    raymarch(pos + n*0.1, r, 100, pos, d, t);
-    materialToProperty(pos, d, baseColor, n, roughness, metallic);
-    
-    vec3 secondaryCol = shade(pos, baseColor, t, metallic);
-    
-    col = secondaryCol;
-
-    fragColor = vec4(col,1.0);
-}
-
-void main( )
-{
-    vec4 col;
-    mainImage(col, gl_FragCoord.xy);
-    fragColor = col;
 }
 </script>
 

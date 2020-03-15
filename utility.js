@@ -132,7 +132,7 @@ class RenderTexture {
     }
 }
 
-class MRTTexture2 {
+class MRTTexture4 {
     constructor(width, height, type) {
         this.width = width;
         this.height = height;
@@ -145,16 +145,26 @@ class MRTTexture2 {
         this.texture1 = new Texture2D(width, height);
         this.texture1.SetImageData(null, type);
 
+        this.texture2 = new Texture2D(width, height);
+        this.texture2.SetImageData(null, type);
+
+        this.texture3 = new Texture2D(width, height);
+        this.texture3.SetImageData(null, type);
+
         this.Bind();
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture0.texture, 0);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.texture1.texture, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, this.texture2.texture, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, this.texture3.texture, 0);
         this.UnBind();
     }
     Bind() {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
         var bufferList = [
             gl.COLOR_ATTACHMENT0,
-            gl.COLOR_ATTACHMENT1
+            gl.COLOR_ATTACHMENT1,
+            gl.COLOR_ATTACHMENT2,
+            gl.COLOR_ATTACHMENT3
         ];
         gl.drawBuffers(bufferList);
     }
