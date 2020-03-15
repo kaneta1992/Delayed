@@ -72,13 +72,13 @@ void main( )
 <script id="gaussian" type="x-shader/x-fragment">
 #version 300 es
 precision highp float;
-uniform vec2  resolution, gaussianDir;
+uniform vec2  resolution, blurDir;
 uniform sampler2D tex; 
 out vec4 fragColor;
 
 void main( )
 {
-    vec2 uv = gl_FragCoord.xy / resolution, dir = gaussianDir / resolution;
+    vec2 uv = gl_FragCoord.xy / resolution, dir = blurDir / resolution;
     vec4 sum = vec4(0.0);
     for (int i = -5; i <= 5; i++) {
         sum += float[](0.200565,0.176998,0.121649,0.0651141,0.0271436,0.00881223)[abs(i)] * textureLod(tex, uv + float(i) * dir, 0.0);
@@ -138,8 +138,8 @@ void main( )
 <script id="mainHeader" type="x-shader/x-fragment">
 #version 300 es
 precision highp float;
-uniform vec2  iResolution; 
-uniform float iTime;
+uniform vec2  resolution; 
+uniform float time;
 uniform sampler2D reflectTexture, depthNormalTexture, roughnessTexture, baseColorTexture;
 
 layout (location = 0) out vec4 fragColor;
@@ -310,24 +310,24 @@ vec2 map(vec3 p) {
 
     vec3 spherePos = vec3(0.0);
     float size = 0.0;
-    if (iTime > 9.0 && iTime < 17.0) {
+    if (time > 9.0 && time < 17.0) {
         spherePos = vec3(0.0, -0.5, 18.0);
         size = 0.8;
-    } else if(iTime > 17.0 && iTime < 49.0) {
+    } else if(time > 17.0 && time < 49.0) {
         spherePos = vec3(0.0, -0.5, tt + 4.0);
         size = 0.3;
-    } else if(iTime > 49.0) {
+    } else if(time > 49.0) {
         spherePos = vec3(0.0, -0.5, -16.0);
         size = 0.8;
     }
 
     d = min2(d, vec2(sphere(p - spherePos, size), MAT_SPHERE));
 
-    if (iTime > 17.0 && iTime < 48.0) {
+    if (time > 17.0 && time < 48.0) {
         d = min2(d, vec2(boxes(p, 0.0, 0.6, 3.0, 0.0, 1.0, 4.0, p.z - tt), MAT_GOLD));
         d = min2(d, vec2(boxes(p - vec3(0., 0.0, 1.0), 100.0, 1.0, 5.0, 0.0, 1.0, 4.0, p.z - tt), MAT_GOLD));
     }
-    if (iTime > 33.0 && iTime < 48.0) {
+    if (time > 33.0 && time < 48.0) {
         d = min2(d, vec2(spaghetti(p), MAT_BLACK));
     }
 
@@ -445,16 +445,16 @@ void pillarProperty(vec3 p, vec3 n, vec2 mat, out vec3 baseColor, out float roug
 
 float pattern(vec2 uv) {
     float t = 0.0;
-    for(int i=0;i<=int(mod((iTime-1.)*4., 32.0));i++)t += float(0x84B0849>>i&1);
+    for(int i=0;i<=int(mod((time-1.)*4., 32.0));i++)t += float(0x84B0849>>i&1);
     float h2 = hash(t+10.0)*2.0-1.0, h3 = hash(t+4000.0)*2.0-1.0, h4 = hash(t+1000.);
 	uv = floor(uv * vec2(h3*0.05,h2*0.05));
     return min(1.0, mod(uv.x + uv.y, 2.0 + floor(h4*8.0)));
 }
 
 void outsideProperty(vec3 p, vec3 n, vec2 mat, out vec3 baseColor, out float roughness, out float metallic) {
-    float intensity = smoothstep(15.0, 17.0, iTime) * 4000.0 + 1.0;
-    if (iTime > 17.0) intensity*=pattern(p.yz*20.0);
-    if (iTime > 33.0) intensity*=pattern(p.yz*60.0);
+    float intensity = smoothstep(15.0, 17.0, time) * 4000.0 + 1.0;
+    if (time > 17.0) intensity*=pattern(p.yz*20.0);
+    if (time > 33.0) intensity*=pattern(p.yz*60.0);
     baseColor = vec3(0.05, 0.02, 0.005)*intensity;
     roughness = pow(t3(p*vec3(2.0, 2.0, 2.0), n), 1.0) * 0.6 + 0.1;
 }
@@ -502,9 +502,9 @@ void materialToProperty(vec3 p, vec2 mat, out vec3 baseColor, out vec3 normalVec
         roughness = 0.1;
         metallic = 0.0;
     } else if (mat.y == MAT_SPHERE) {
-        float intensity = smoothstep(13.0, 15.0, iTime) * 5.0 + 1.0;
-        if (iTime > 17.0 && iTime < 49.0) {
-            intensity = exp(-fract(iTime*0.5) * 6.0) * 40.0 + 0.8;
+        float intensity = smoothstep(13.0, 15.0, time) * 5.0 + 1.0;
+        if (time > 17.0 && time < 49.0) {
+            intensity = exp(-fract(time*0.5) * 6.0) * 40.0 + 0.8;
         }
         baseColor = vec3(1.0) * intensity;
         roughness = 0.0;
@@ -555,31 +555,31 @@ vec3 shadeWithReflect(vec3 p, vec3 ray, vec2 uv, vec3 baseColor, float t, vec3 n
 }
 
 void getCamera(vec2 p, out vec3 origin, out vec3 ray) {
-    tt = iTime*0.9;
-    if (iTime > 48.05 && iTime < 49.0) {
+    tt = time*0.9;
+    if (time > 48.05 && time < 49.0) {
         tt = 47.0;
     }
     vec3 target = vec3(0.0);
     float f = 3.5;
 
-    if (iTime < 9.0) {
+    if (time < 9.0) {
         float z = tt * 0.5 + 2.0;
         origin = vec3(5.0, 1.0, z);
         target = vec3(0.0, -0.5, z * 1.5 + 2.0);
-    } else if (iTime < 17.0) {
+    } else if (time < 17.0) {
         float z = tt * 0.5;
         origin = vec3(0.0, 0.0, z);
         target = vec3(0.0, -0.5, z*1.5 + 1.0);
-    } else if (iTime < 33.0) {
+    } else if (time < 33.0) {
         float z = tt * 0.5;
         origin = vec3(sin(tt*0.2) * 7.0, cos(tt*0.08)*1., -5.0 + tt);
         target = vec3(0.0, -0.5, tt);
-    } else if (iTime < 49.0) {
+    } else if (time < 49.0) {
         float z = tt * 0.5;
         float ttt = tt + 0.1;
         origin = vec3(sin(ttt*0.2) * 7.0, cos(ttt*0.05)*1., -5.0 + tt);
         target = vec3(0.0, -0.5, tt);
-    } else if (iTime < 65.0) {
+    } else if (time < 65.0) {
         float z = tt * 0.5;
         origin = vec3(0.0, 0.0, -z);
         target = vec3(0.0, -0.5, -z * 0.8);
@@ -595,8 +595,8 @@ void getCamera(vec2 p, out vec3 origin, out vec3 ray) {
 
 <script id="GBuffer" type="x-shader/x-fragment">
 void mainImage( out vec4 fragColor, out vec4 fragColor2, out vec4 fragColor3, out vec4 fragColor4, in vec2 fragCoord ) {
-    vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
-    vec2 uv = fragCoord.xy / iResolution.xy;
+    vec2 p = (fragCoord.xy * 2.0 - resolution.xy) / min(resolution.x, resolution.y);
+    vec2 uv = fragCoord.xy / resolution.xy;
         
     if (abs(p.y) > 0.75) {
         return;
@@ -635,8 +635,8 @@ void main( )
 
 <script id="shade" type="x-shader/x-fragment">
 void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
-    vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
-    vec2 uv = fragCoord.xy / iResolution.xy;
+    vec2 p = (fragCoord.xy * 2.0 - resolution.xy) / min(resolution.x, resolution.y);
+    vec2 uv = fragCoord.xy / resolution.xy;
         
     if (abs(p.y) > 0.75) {
         return;

@@ -5,7 +5,7 @@ function blur(x, y, src, dest, program) {
     program.Use();
     program.SendTexture2D("tex", src.texture, 0);
     program.Send2f("resolution", dest.width, dest.height);
-    program.Send2f("gaussianDir", x, y);
+    program.Send2f("blurDir", x, y);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     dest.UnBind();
@@ -122,8 +122,8 @@ window.onload = function () {
         gBufferTextures.Bind();
         gBufferTextures.SetViewport();
         gBufferProgram.Use();
-        gBufferProgram.Send2f("iResolution", gBufferTextures.width, gBufferTextures.height);
-        gBufferProgram.Send1f("iTime", bpm69);
+        gBufferProgram.Send2f("resolution", gBufferTextures.width, gBufferTextures.height);
+        gBufferProgram.Send1f("time", bpm69);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gBufferTextures.UnBind();
 
@@ -135,8 +135,8 @@ window.onload = function () {
         shadedTexture.Bind();
         shadedTexture.SetViewport();
         lightingProgram.Use();
-        lightingProgram.Send2f("iResolution", shadedTexture.width, shadedTexture.height);
-        lightingProgram.Send1f("iTime", bpm69);
+        lightingProgram.Send2f("resolution", shadedTexture.width, shadedTexture.height);
+        lightingProgram.Send1f("time", bpm69);
         lightingProgram.SendTexture2D("reflectTexture", blurReflectionTextureY.texture, 0);
         lightingProgram.SendTexture2D("roughnessTexture", gBufferTextures.texture1, 1);
         lightingProgram.SendTexture2D("depthNormalTexture", gBufferTextures.texture0, 2);
