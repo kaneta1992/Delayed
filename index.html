@@ -41,14 +41,19 @@ out vec4 fragColor;
 void main( )
 {
     vec2 uv = gl_FragCoord.xy / resolution;
-    vec3 sum;
-    float sumW;
+    vec3 sum = vec3(0.);
+    float sumW = 0.0;
     for(int y=-6;y<=6;++y) {
         for(int x=-6;x<=6;++x) {
-            if(x*x+y*y<37) sum += textureLod(tex, uv + vec2(x,y)/resolution, 0.0).rgb;
+            if(x*x+y*y<37) {
+                vec4 col = textureLod(tex, uv + vec2(x,y)/resolution, 0.0);
+                float w = max(col.w, 0.0001);
+                sum += col.rgb * w;
+                sumW += w;
+            }
         }
     }
-    fragColor = vec4(sum / 113., 1.0);
+    fragColor = vec4(sum / sumW, 1.0);
 }
 </script>
 
@@ -610,7 +615,7 @@ void mainImage( out vec4 fragColor, out vec4 fragColor2, out vec4 fragColor3, ou
     vec2 d;
     float t, roughness, metallic;
     vec3 baseColor, n;
-    raymarch(origin, ray, 150, pos, d, t);
+    raymarch(origin, ray, 250, pos, d, t);
     materialToProperty(pos, d, baseColor, n, roughness, metallic);
 
     fragColor  = vec4(n, t);
@@ -833,8 +838,6 @@ void main( )
 </script>
 
 <link rel="stylesheet" href="./style.css" />
-
-<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js"></script>
 <script type="text/javascript" src="./utility.js"></script>
 <script type="text/javascript" src="./app.js"></script>
 
