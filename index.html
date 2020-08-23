@@ -694,7 +694,7 @@ vec3 contrast(vec3 col, float scale)
     return (col - 0.5) * scale + 0.5;
 }
 
-vec3 colorCollect(vec3 col) {
+vec3 colorCorrect(vec3 col) {
     col = saturation(col, 0.5);
     col = pow(col, vec3(1.5));
     col = col * vec3(0.6, 0.9, 1.0);
@@ -761,7 +761,7 @@ void main( )
     vec2 dirtuv = gl_FragCoord.xy / min(resolution.x, resolution.y);
     col +=  pow(bloom, vec3(1.5)) * dirtTexture(dirtuv);
 
-    col = colorCollect(col);
+    col = colorCorrect(col);
     col = acesFilm(col*0.3);
     col = pow(col, vec3(1.0/2.2));
 
